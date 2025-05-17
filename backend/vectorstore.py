@@ -1,5 +1,6 @@
 import chromadb
 from chromadb.config import Settings
+from backend.embeddings import embed_texts
 
 
 settings = Settings(
@@ -32,10 +33,13 @@ def add_workout_chunks(chunks: list[str], embeddings: list[list[float]], metadat
         ids=ids
     )
 
+def query_workouts(question: str, collection, n_results=5):
+    question_embedding = embed_texts([question])[0]
+    results = collection.query(query_embeddings=[question_embedding], n_results=n_results, include=["documents", "metadatas"])
+    return results
 
-def query_similar_chunks(query_embedding: list[float], top_k: int = 5):
-    """
-    Retrieve top_k similar chunks from the collection given a query embedding.
-    """
-    results = collection.query(query_embeddings=[query_embedding], n_results=top_k)
-    return results["documents"][0]  # list of similar documents
+def get_collection():
+    try:
+        return client.get_collection(name=collection_name)
+    except Exception:
+        return client.create_collection(name=collection_name)
