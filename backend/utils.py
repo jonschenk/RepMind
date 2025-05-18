@@ -1,5 +1,5 @@
 import csv
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 def parse_hevy_csv(contents: bytes) -> List[Dict]:
     decoded = contents.decode('utf-8').splitlines()
@@ -25,24 +25,42 @@ def parse_hevy_csv(contents: bytes) -> List[Dict]:
     return workouts
 
 
-def chunk_workout_data(workouts: List[Dict], chunk_size: int = 5) -> List[str]:
+def chunk_workout_data(workouts: List[Dict], chunk_size: int = 5) -> Tuple[List[str], List[dict]]:
     """
-    Break a list of workout dicts into chunks of concatenated strings.
+    Break a list of workout dicts into chunks of concatenated strings with date info.
     
     Args:
         workouts: List of workout entries parsed from CSV.
         chunk_size: Number of workout entries per chunk.
         
     Returns:
-        List of string chunks, each containing multiple workouts concatenated.
+        A tuple of:
+            - List of string chunks with embedded workout info
+            - List of metadata dicts, one per chunk
     """
     chunks = []
+    metadatas = []
+
     for i in range(0, len(workouts), chunk_size):
         chunk_items = workouts[i:i + chunk_size]
-        chunk_text = "\n".join(
-            f"Exercise: {item['exercise_title']}, Sets: {item['set_index']}, "
-            f"Reps: {item['reps']}, Weight: {item['weight_lbs']} lbs, RPE: {item['rpe']}"
-            for item in chunk_items
-        )
+        chunk_text_lines = []
+
+        # Use the earliest date in this chunk as metadata (fallback to unknown)
+        dates_in_chunk = [item.get('start_time', 'unknown') for item in chunk_items]
+        chunk_date = min(dates_in_chunk) if dates_in_chunk else 'unknown'
+
+        for item in chunk_items:
+            chunk_text_lines.append(
+                f"Date: {item['start_time']}, Exercise: {item['exercise_title']}, "
+                f"Set: {item['set_index']}, Reps: {item['reps']}, "
+                f"Weight: {item['weight_lbs']} lbs, RPE: {item['rpe']}"
+            )
+
+        chunk_text = "\n".join(chunk_text_lines)
         chunks.append(chunk_text)
-    return chunks
+
+        metadatas.append({
+            "date": chunk_date
+        })
+
+    return chunks, metadatas

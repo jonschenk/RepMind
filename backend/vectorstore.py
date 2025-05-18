@@ -1,45 +1,31 @@
-import chromadb
-from chromadb.config import Settings
-from backend.embeddings import embed_texts
+from langchain_community.vectorstores import Chroma
+from backend.embeddings import embedding_model
+from langchain_core.documents import Document
 
 
-settings = Settings(
-    persist_directory="./chroma_db"
+PERSIST_DIRECTORY = "./chroma_db"
+COLLECTION_NAME = "workouts"
+
+vectorstore = Chroma(
+    persist_directory=PERSIST_DIRECTORY,
+    collection_name=COLLECTION_NAME,
+    embedding_function=embedding_model,
 )
 
-# Initialize Chroma client (local embedded)
-client = chromadb.Client(settings=settings)
-
-# Create or get collection for workouts
-collection_name = "workouts"
-try: 
-    collection = client.get_collection(name=collection_name)
-except Exception:
-    collection = client.create_collection(name=collection_name)
-
-
-def add_workout_chunks(chunks: list[str], embeddings: list[list[float]], metadatas: list[dict] = None):
-    """
-    Add workout chunks and their embeddings to the Chroma collection.
-    """
-    ids = [f"chunk_{i}" for i in range(len(chunks))]
-    if metadatas is None:
-        metadatas = [{"source": "upload"} for _ in chunks]
-
-    collection.add(
-        documents=chunks,
-        embeddings=embeddings,
-        metadatas=metadatas,
-        ids=ids
-    )
-
-def query_workouts(question: str, collection, n_results=5):
-    question_embedding = embed_texts([question])[0]
-    results = collection.query(query_embeddings=[question_embedding], n_results=n_results, include=["documents", "metadatas"])
-    return results
+def add_workout_chunks(chunks: list[str], metadatas: list[dict]):
+    """Add workout chunks with their metadata"""
+    
+    # Convert to Document objects
+    documents = [
+        Document(
+            page_content=chunk,
+            metadata=metadata
+        )
+        for chunk, metadata in zip(chunks, metadatas)
+    ]
+    
+    # Add to vectorstore
+    vectorstore.add_documents(documents)
 
 def get_collection():
-    try:
-        return client.get_collection(name=collection_name)
-    except Exception:
-        return client.create_collection(name=collection_name)
+    return vectorstore

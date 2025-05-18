@@ -2,9 +2,9 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.utils import parse_hevy_csv, chunk_workout_data
-from backend.embeddings import embed_texts
-from backend.vectorstore import add_workout_chunks, query_workouts, get_collection
-from backend.deepseek_client import run_deepseek
+from backend.embeddings import embedding_model
+from backend.vectorstore import add_workout_chunks, get_collection
+from backend.langchain_chain import ask_with_langchain
 
 app = FastAPI()
 
@@ -26,13 +26,14 @@ def home():
 
 @app.post("/upload-csv")
 async def upload_csv(file: UploadFile = File(...)):
-    contents = await file.read()
-    workouts = parse_hevy_csv(contents)
-    chunks = chunk_workout_data(workouts)
-    embeddings = embed_texts(chunks)
-    add_workout_chunks(chunks, embeddings)
-
-    return {"message": f"Processed {len(chunks)} chunks"}
+    try:
+        contents = await file.read()
+        workouts = parse_hevy_csv(contents)
+        chunks, metadatas = chunk_workout_data(workouts)
+        add_workout_chunks(chunks, metadatas)
+        return {"message": f"Processed {len(chunks)} chunks"}
+    except Exception as e:
+        return {"error": f"Failed to process CSV: {str(e)}"}
 
 
 @app.post("/ask")
@@ -41,18 +42,18 @@ async def ask_question(data: dict):
     if not question:
         return {"error": "Question field is required"}
 
+    try:
+        answer = ask_with_langchain(question)
+        return {
+            "question": question,
+            "answer": answer
+        }
+    except Exception as e:
+        return {"error": f"LangChain error: {str(e)}"}
+
+
+@app.get("/debug-docs")
+def debug_docs():
     collection = get_collection()
-    results = query_workouts(question, collection, n_results=5)
-    
-    # Extract the actual document texts
-    chunks = results["documents"][0] if results["documents"] else []
-
-    context = "\n".join(chunks)
-    prompt = f"Use the following workout data to answer the question:\n{context}\n\nQuestion: {question}\nAnswer:"
-
-    answer = await run_deepseek(prompt)
-
-    return {
-        "question": question,
-        "answer": answer
-    }
+    results = collection.get()
+    return {"ids": results.get("ids"), "documents": results.get("documents")}
