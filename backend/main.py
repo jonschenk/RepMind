@@ -1,11 +1,11 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.utils import parse_hevy_csv, chunk_workout_data
 from backend.embeddings import embedding_model
 from backend.vectorstore import add_workout_chunks, get_collection
 from backend.sqlitestore import insert_workouts_into_sqlite
-# from backend.router_agent import ask_with_langchain
+from backend.router_agent import ask_llm
 
 app = FastAPI()
 
@@ -44,20 +44,20 @@ async def upload_csv(file: UploadFile = File(...)):
         return {"error": f"Failed to process CSV: {str(e)}"}
 
 
-# @app.post("/ask")
-# async def ask_question(data: dict):
-#     question = data.get("question", "")
-#     if not question:
-#         return {"error": "Question field is required"}
+@app.post("/ask")
+async def ask_question(request: Request):
+    data = await request.json()
+    question = data.get("question", "").strip()
+    
+    if not question:
+        return {"error": "Question field is required"}
 
-#     try:
-#         answer = ask_with_langchain(question)
-#         return {
-#             "question": question,
-#             "answer": answer
-#         }
-#     except Exception as e:
-#         return {"error": f"LangChain error: {str(e)}"}
+    try:
+        # Run question through the RouterChain
+        response = ask_llm(question)
+        return {"question": question, "answer": response}
+    except Exception as e:
+        return {"error": f"RouterChain processing error: {str(e)}"}
 
 
 @app.get("/debug-docs")
