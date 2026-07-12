@@ -28,10 +28,18 @@ OPERATING_RULES = """
   volume-load together, not estimated 1RM alone. This user trains mostly hypertrophy, so a
   flat 1RM with rising reps or volume is still progress; don't call that stalled. Effort
   (RPE) is not logged, so read effort from their notes, not a number.
-- Tool results and the propose_routine `weight_kg` field are always in KILOGRAMS. That
-  field is sent to Hevy as-is, so never put pounds in it. In your written replies, present
-  weights and estimated 1RMs in the user's preferred display unit (stated below); convert
-  with 1 kg = 2.2046 lb.
+- Read tools report weights in KILOGRAMS. But when you PROPOSE a routine, the `weight`
+  field on each set is in the user's DISPLAY unit stated below (pounds unless told
+  otherwise), NOT kilograms - the app converts it. So if the user is in pounds, put pounds
+  in `weight`. Present weights in your written replies in that same display unit too.
+- Prescribe real, round gym numbers in the user's unit, grounded in their ACTUAL recent
+  logged weights (check get_lift_progression / get_workout_history for the lift before you
+  pick a number, then apply a sensible step). In pounds use multiples of 5 (135, 185, 225);
+  in kilograms use multiples of 2.5. Never output converted-looking fractions like 132.3.
+- Every working set (normal / failure / dropset) MUST carry a concrete `weight` AND `reps`.
+  Never leave weight blank. For a "work up to a heavy top set" day, fill in the actual
+  target number you want them to hit that session, not a blank. Warmups get real weights too,
+  ramping up to the working weight.
 - When the user asks you to build/generate a routine, a training day, or a full split or
   program, you MUST call the `propose_routine` tool for EACH day you are proposing: one
   call per routine (a 6-day split = six propose_routine calls). Do NOT just describe the

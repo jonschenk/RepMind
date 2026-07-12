@@ -95,15 +95,19 @@ READ_TOOLS: list[dict] = [
     },
 ]
 
-# NOT strict: weight/rest are intentionally optional (omit rather than invent a placeholder),
-# and notes are optional. Validated server-side at approval time.
+# NOT strict: notes/rest are optional. `weight` is in the user's DISPLAY unit (lb or kg,
+# stated in the system prompt) and converted to kg server-side, so the numbers stay round
+# in the user's own unit. Every working set should carry a concrete weight and reps.
 PROPOSE_ROUTINE_TOOL: dict = {
     "name": "propose_routine",
     "description": (
-        "Propose a Hevy routine for the user to review. This does NOT push anything to Hevy — "
+        "Propose a Hevy routine for the user to review. This does NOT push anything to Hevy - "
         "it renders a preview card the user must explicitly approve. Use the user's real exercise "
-        "names (confirm with search_exercises if unsure). Weights are in kilograms; omit weight or "
-        "rest entirely when you don't want to prescribe one rather than inventing a placeholder."
+        "names (confirm with search_exercises if unsure). The `weight` field is in the user's "
+        "DISPLAY unit stated in the system prompt (pounds unless told otherwise), NOT kilograms - "
+        "the app converts it. Give every working set (normal/failure/dropset) a concrete, round "
+        "weight and rep count grounded in the user's recent logged weights; never leave weight "
+        "blank, and for a 'work up to a top set' day fill in the actual target number to hit."
     ),
     "input_schema": {
         "type": "object",
@@ -124,7 +128,10 @@ PROPOSE_ROUTINE_TOOL: dict = {
                                 "type": "object",
                                 "properties": {
                                     "type": {"type": "string", "enum": ["normal", "warmup", "failure", "dropset"]},
-                                    "weight_kg": {"type": "number"},
+                                    "weight": {
+                                        "type": "number",
+                                        "description": "Target weight in the user's display unit (lb unless stated otherwise). Round to real gym numbers.",
+                                    },
                                     "reps": {"type": "integer"},
                                 },
                                 "required": ["type"],

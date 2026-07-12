@@ -22,11 +22,42 @@ from app.state import get_preferences
 MAX_TOOL_ITERATIONS = 30
 
 
-def _create_proposal(session: Session, proposed: dict) -> dict:
+# Match the frontend's KG_TO_LB exactly so a round display weight round-trips back to the
+# same round number on the card (e.g. 135 lb -> 61.235 kg -> 135.0 lb) instead of showing
+# a converted-looking fraction.
+KG_TO_LB = 2.2046
+
+
+def _to_kg(weight: float, weight_unit: str) -> float:
+    return float(weight) if weight_unit == "kg" else round(float(weight) / KG_TO_LB, 4)
+
+
+def _normalize_weights(proposed: dict, weight_unit: str) -> dict:
+    """The model proposes `weight` in the user's display unit; store canonical `weight_kg`
+    so the rest of the pipeline (card, edit, push) stays kg-native."""
+    out = dict(proposed)
+    exercises = []
+    for ex in proposed.get("exercises", []) or []:
+        ex2 = dict(ex)
+        sets2 = []
+        for s in ex.get("sets", []) or []:
+            s2 = {k: v for k, v in s.items() if k != "weight"}
+            w = s.get("weight")
+            if w is not None:
+                s2["weight_kg"] = _to_kg(w, weight_unit)
+            sets2.append(s2)
+        ex2["sets"] = sets2
+        exercises.append(ex2)
+    out["exercises"] = exercises
+    return out
+
+
+def _create_proposal(session: Session, proposed: dict, weight_unit: str) -> dict:
+    payload = _normalize_weights(proposed, weight_unit)
     row = RoutineProposal(
         status="pending",
-        title=proposed.get("title", "Untitled routine"),
-        payload=proposed,
+        title=payload.get("title", "Untitled routine"),
+        payload=payload,
     )
     session.add(row)
     session.commit()
@@ -34,8 +65,8 @@ def _create_proposal(session: Session, proposed: dict) -> dict:
     return {
         "id": row.id,
         "title": row.title,
-        "notes": proposed.get("notes"),
-        "exercises": proposed.get("exercises", []),
+        "notes": payload.get("notes"),
+        "exercises": payload.get("exercises", []),
         "status": row.status,
     }
 
@@ -50,7 +81,8 @@ async def stream_chat(
         return
 
     anthropic = get_async_anthropic()
-    system = build_system_prompt(get_preferences(session)["weight_unit"])
+    weight_unit = get_preferences(session)["weight_unit"]
+    system = build_system_prompt(weight_unit)
     # Prior turns are plain text; the tool loop within this request adds block content.
     messages: list[dict[str, Any]] = [
         {"role": m["role"], "content": m["content"]} for m in history
@@ -102,7 +134,7 @@ async def stream_chat(
                 yield {"type": "tool_use", "name": block.name, "input": block.input}
 
                 if block.name == "propose_routine":
-                    proposal = _create_proposal(session, block.input)
+                    proposal = _create_proposal(session, block.input, weight_unit)
                     yield {"type": "proposal", "proposal": proposal}
                     tool_results.append(
                         {
