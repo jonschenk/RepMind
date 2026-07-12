@@ -66,8 +66,24 @@ select, input, textarea {
 .stalled-row .name { font-weight: 600; }
 .stalled-row .meta { font-size: 13px; color: var(--muted); }
 
-.summary { white-space: pre-wrap; line-height: 1.6; }
+.summary { line-height: 1.6; }
 .summary strong { color: var(--text); }
+
+/* lite markdown */
+.md-h { font-weight: 700; margin: 14px 0 4px; }
+.md-h1 { font-size: 18px; }
+.md-h2 { font-size: 16px; }
+.md-h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.md-li { display: flex; gap: 8px; margin: 3px 0; }
+.md-bullet { color: var(--accent); }
+.md-gap { height: 8px; }
+
+.pill.good { color: var(--good); border-color: var(--good); }
+.priority-row { background: rgba(255, 107, 61, 0.09); border-radius: 8px; padding-left: 8px; padding-right: 8px; }
+.note-theme { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.note-theme:last-child { border-bottom: none; }
+.change-badge { font-size: 12px; color: var(--accent); font-weight: 600; margin-bottom: 4px; }
+.change-rationale { font-size: 13px; color: var(--muted); margin: 2px 0 8px; }
 
 /* Chat */
 .chat-wrap { display: flex; flex-direction: column; height: calc(100vh - 160px); }

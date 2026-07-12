@@ -136,8 +136,15 @@ async def approve_proposal(
     body = build_routine_body(routine)
     row.resolved_payload = body
 
+    if row.kind == "update":
+        if not row.target_routine_id:
+            raise HTTPException(422, "Update proposal has no target routine id. Nothing pushed.")
+
     try:
-        result = await client.create_routine(body)
+        if row.kind == "update":
+            result = await client.update_routine(row.target_routine_id, body)
+        else:
+            result = await client.create_routine(body)
     except HevyError as exc:
         row.status = "failed"
         row.error = str(exc)

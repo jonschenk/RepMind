@@ -2,19 +2,37 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session
 
+from app.coach.weekly_review import generate_weekly_review
 from app.config import get_settings
 from app.db import engine, init_db
 from app.hevy import HevyClient
 from app.models import SyncState
-from app.routes import chat, dashboard, routines, sync
+from app.routes import chat, dashboard, routines, sync, weekly
 from app.sync.service import run_sync
+
+scheduler = AsyncIOScheduler()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("repmind")
+
+
+async def _weekly_review_job() -> None:
+    """Pre-generate the weekly review so it's ready in-app. Best-effort."""
+    settings = get_settings()
+    if not (settings.hevy_configured and settings.anthropic_configured):
+        return
+    try:
+        with Session(engine) as session:
+            client = HevyClient(settings)
+            await generate_weekly_review(session, client)
+            logger.info("Scheduled weekly review generated.")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Scheduled weekly review failed: %s", exc)
 
 
 async def _startup_sync() -> None:
@@ -37,7 +55,13 @@ async def lifespan(app: FastAPI):
     init_db()
     # Kick off sync in the background so the API is available immediately.
     asyncio.create_task(_startup_sync())
+    # Weekly review pre-generation (Monday 06:00 local). In-app is the delivery surface.
+    scheduler.add_job(
+        _weekly_review_job, "cron", day_of_week="mon", hour=6, minute=0, id="weekly_review"
+    )
+    scheduler.start()
     yield
+    scheduler.shutdown(wait=False)
 
 
 app = FastAPI(title="repMind", lifespan=lifespan)
@@ -55,6 +79,7 @@ app.include_router(sync.router)
 app.include_router(dashboard.router)
 app.include_router(chat.router)
 app.include_router(routines.router)
+app.include_router(weekly.router)
 
 
 @app.get("/api/health")

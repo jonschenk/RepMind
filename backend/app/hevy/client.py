@@ -132,6 +132,35 @@ class HevyClient:
         data = await self._get("/v1/routine_folders", params={"page": 1, "pageSize": 10})
         return data.get("routine_folders", [])
 
+    async def get_body_measurements(self, max_pages: int = 6) -> list[dict]:
+        out: list[dict] = []
+        page = 1
+        while page <= max_pages:
+            data = await self._get(
+                "/v1/body_measurements", params={"page": page, "pageSize": 10}
+            )
+            batch = data.get("body_measurements", [])
+            out.extend(batch)
+            page_count = int(data.get("page_count", 1))
+            if page >= page_count or not batch:
+                break
+            page += 1
+        return out
+
+    async def get_exercise_history(
+        self,
+        template_id: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> list[dict]:
+        params: dict = {}
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+        data = await self._get(f"/v1/exercise_history/{template_id}", params=params or None)
+        return data.get("exercise_history", [])
+
     # --- Writes (gated by DRY_RUN) ----------------------------------------------
 
     async def create_routine(self, body: dict) -> dict:

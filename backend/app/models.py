@@ -64,15 +64,34 @@ class SyncState(SQLModel, table=True):
 
 
 class RoutineProposal(SQLModel, table=True):
-    """A routine Claude proposed in chat. Never pushed to Hevy until status=='approved'
-    triggers the push. `payload` is Claude's structured proposal; `resolved_payload` is
-    the exact body sent to Hevy (names->UUIDs, wrapped, notes sanitized)."""
+    """A routine Claude proposed (in chat or in the weekly review). Never pushed to Hevy
+    until approval triggers the push. `payload` is Claude's structured proposal;
+    `resolved_payload` is the exact body sent to Hevy (names->UUIDs, wrapped, sanitized).
+
+    kind='create' -> POST a new routine; kind='update' -> PUT (full overwrite) the routine
+    at `target_routine_id`. `diff` holds a human-readable rationale/summary for the card."""
 
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     status: str = Field(default="pending", index=True)  # pending|pushed|failed
     title: str = ""
+    kind: str = Field(default="create")  # create | update
+    target_routine_id: Optional[str] = None  # for kind=update
+    source: str = Field(default="chat")  # chat | weekly
     payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    diff: Optional[dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
     resolved_payload: Optional[dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
     hevy_routine_id: Optional[str] = None
     error: Optional[str] = None
+
+
+class WeeklyReview(SQLModel, table=True):
+    """A generated weekly review. `payload` holds the narrative + computed signals +
+    the ids of the RoutineProposal rows it produced."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    generated_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    period_start: datetime
+    period_end: datetime
+    status: str = Field(default="ready")
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))

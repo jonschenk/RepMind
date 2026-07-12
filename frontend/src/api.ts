@@ -64,6 +64,41 @@ export interface Proposal {
   status?: string;
 }
 
+export interface WeeklyProposal {
+  id: number;
+  kind: "create" | "update";
+  target_routine_id: string | null;
+  title: string;
+  diff: { rationale?: string; changes_summary?: string } | null;
+  payload: { title: string; notes?: string; exercises: ProposedExercise[] };
+  status: string;
+}
+
+export interface VolumeReportRow {
+  muscle: string;
+  sets: number;
+  mev: number;
+  mav: number;
+  status: string;
+  priority?: boolean;
+}
+
+export interface WeeklyReviewData {
+  exists: boolean;
+  id?: number;
+  generated_at?: string;
+  period?: { start: string; end: string };
+  narrative?: string;
+  signals?: {
+    training_days: number;
+    volume: VolumeReportRow[];
+    prs: { exercise: string; est_1rm: number; prev_best: number; gain: number; date: string }[];
+    heavy_lane_stalls: { exercise: string; best_est_1rm: number; recent_best_est_1rm: number; sessions_since_pr: number }[];
+    notes: { category: string; exercise: string | null; quote: string; insight: string }[];
+  };
+  proposals?: WeeklyProposal[];
+}
+
 export type ChatEvent =
   | { type: "text"; text: string }
   | { type: "tool_use"; name: string; input: unknown }
@@ -98,6 +133,8 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload ? { payload } : {}),
     }).then((r) => j<any>(r)),
+  weeklyReview: () => fetch("/api/weekly").then((r) => j<WeeklyReviewData>(r)),
+  generateWeekly: () => fetch("/api/weekly/generate", { method: "POST" }).then((r) => j<any>(r)),
 };
 
 // Stream chat via SSE, invoking onEvent for each parsed event.

@@ -1,15 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-
-// Renders **bold** markdown and line breaks minimally (no external md lib needed).
-function renderLite(text: string) {
-  return text.split("\n").map((line, i) => {
-    const parts = line.split(/(\*\*[^*]+\*\*)/g).map((p, j) =>
-      p.startsWith("**") && p.endsWith("**") ? <strong key={j}>{p.slice(2, -2)}</strong> : <span key={j}>{p}</span>,
-    );
-    return <div key={i}>{parts}</div>;
-  });
-}
+import { renderLite } from "../renderLite";
 
 export function SummaryCard({ enabled }: { enabled: boolean }) {
   const [text, setText] = useState<string | null>(null);

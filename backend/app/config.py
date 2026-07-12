@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     # most recent sessions.
     stall_lookback_sessions: int = 4
 
+    # A session counts as a "heavy" lane session if its top working set is at or below this
+    # rep count; otherwise it's a "hypertrophy" session. Keeps heavy/light days from muddying
+    # each other's trends.
+    heavy_rep_threshold: int = 5
+
+    # Weekly review looks back this many days.
+    weekly_review_days: int = 7
+
     cors_origins: list[str] = ["http://localhost:5173"]
 
     @property

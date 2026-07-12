@@ -22,8 +22,17 @@ interface EditExercise {
 }
 
 // Renders a proposed routine as a preview. Notes and set values are editable here before
-// pushing. Nothing reaches Hevy until the user clicks Approve & Push.
-export function RoutinePreviewCard({ proposal }: { proposal: Proposal }) {
+// pushing. Nothing reaches Hevy until the user clicks Approve & Push. `badge`/`rationale`
+// are used by the weekly review to frame a change ("Updates: Legs 1" + why).
+export function RoutinePreviewCard({
+  proposal,
+  badge,
+  rationale,
+}: {
+  proposal: Proposal;
+  badge?: string;
+  rationale?: string;
+}) {
   const [status, setStatus] = useState<string>(proposal.status ?? "pending");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -117,7 +126,9 @@ export function RoutinePreviewCard({ proposal }: { proposal: Proposal }) {
 
   return (
     <div className="routine-card">
+      {badge && <div className="change-badge">{badge}</div>}
       <h3>{proposal.title}</h3>
+      {rationale && <div className="change-rationale">{rationale}</div>}
 
       <label className="ex-sub">Routine notes</label>
       <textarea

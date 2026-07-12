@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { api, Health } from "./api";
 import { Dashboard } from "./views/Dashboard";
 import { Chat } from "./views/Chat";
+import { WeeklyReview } from "./views/WeeklyReview";
 
 export default function App() {
-  const [tab, setTab] = useState<"dashboard" | "chat">("dashboard");
+  const [tab, setTab] = useState<"dashboard" | "weekly" | "chat">("dashboard");
   const [health, setHealth] = useState<Health | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -45,6 +46,9 @@ export default function App() {
           <button className={`tab ${tab === "dashboard" ? "active" : ""}`} onClick={() => setTab("dashboard")}>
             Dashboard
           </button>
+          <button className={`tab ${tab === "weekly" ? "active" : ""}`} onClick={() => setTab("weekly")}>
+            Weekly
+          </button>
           <button className={`tab ${tab === "chat" ? "active" : ""}`} onClick={() => setTab("chat")}>
             Chat
           </button>
@@ -63,11 +67,9 @@ export default function App() {
         <div className="banner">HEVY_API_KEY is not set. Add it to .env (requires Hevy Pro) and restart the backend.</div>
       )}
 
-      {tab === "dashboard" ? (
-        <Dashboard health={health} />
-      ) : (
-        <Chat anthropicReady={!!health?.anthropic_configured} />
-      )}
+      {tab === "dashboard" && <Dashboard health={health} />}
+      {tab === "weekly" && <WeeklyReview anthropicReady={!!health?.anthropic_configured} />}
+      {tab === "chat" && <Chat anthropicReady={!!health?.anthropic_configured} />}
     </div>
   );
 }
