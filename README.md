@@ -59,3 +59,20 @@ First run performs a full workout sync on startup. Use the **Sync now** button (
 
 `coach-context.md` holds your training philosophy and goals. It's read fresh at the start
 of each chat session — edit it as your numbers and priorities change; no code edits needed.
+
+## Deployment (self-hosted on a tailnet host)
+
+Deployed to `pi4host` and served at **http://pi4host:8000** (tailnet-only — bound to the
+tailscale IP, not the LAN). Runs as the `repmind` systemd service (auto-restart, starts on
+boot); FastAPI serves the built frontend as static files, so the host needs no Node runtime.
+
+Ship updates with one command from this Mac (Tailscale must be up):
+
+```bash
+./deploy.sh
+```
+
+It builds the frontend locally, pushes `main`, pulls the backend on the Pi, rsyncs the built
+UI, reinstalls any new deps, restarts the service, and health-checks. Commit backend changes
+before running (the Pi deploys backend from pushed `main`; the frontend ships from the local
+build). Logs on the host: `journalctl -u repmind -f`.
