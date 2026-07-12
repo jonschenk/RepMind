@@ -16,44 +16,17 @@ from app.hevy import HevyClient
 from app.llm import get_async_anthropic
 from app.models import RoutineProposal
 from app.state import get_preferences
+from app.units import routine_weights_to_kg
 
 # A full multi-day split needs many tool calls (exercise lookups + one propose_routine
 # per day), so this must be generous or the model gets cut off mid-plan.
 MAX_TOOL_ITERATIONS = 30
 
 
-# Match the frontend's KG_TO_LB exactly so a round display weight round-trips back to the
-# same round number on the card (e.g. 135 lb -> 61.235 kg -> 135.0 lb) instead of showing
-# a converted-looking fraction.
-KG_TO_LB = 2.2046
-
-
-def _to_kg(weight: float, weight_unit: str) -> float:
-    return float(weight) if weight_unit == "kg" else round(float(weight) / KG_TO_LB, 4)
-
-
-def _normalize_weights(proposed: dict, weight_unit: str) -> dict:
-    """The model proposes `weight` in the user's display unit; store canonical `weight_kg`
-    so the rest of the pipeline (card, edit, push) stays kg-native."""
-    out = dict(proposed)
-    exercises = []
-    for ex in proposed.get("exercises", []) or []:
-        ex2 = dict(ex)
-        sets2 = []
-        for s in ex.get("sets", []) or []:
-            s2 = {k: v for k, v in s.items() if k != "weight"}
-            w = s.get("weight")
-            if w is not None:
-                s2["weight_kg"] = _to_kg(w, weight_unit)
-            sets2.append(s2)
-        ex2["sets"] = sets2
-        exercises.append(ex2)
-    out["exercises"] = exercises
-    return out
-
-
 def _create_proposal(session: Session, proposed: dict, weight_unit: str) -> dict:
-    payload = _normalize_weights(proposed, weight_unit)
+    # The model proposes `weight` in the user's display unit; store canonical `weight_kg`
+    # so the rest of the pipeline (card, edit, push) stays kg-native.
+    payload = routine_weights_to_kg(proposed, weight_unit)
     row = RoutineProposal(
         status="pending",
         title=payload.get("title", "Untitled routine"),

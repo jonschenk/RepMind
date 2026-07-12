@@ -23,16 +23,19 @@ from app.hevy.schemas import strip_dashes
 from app.llm import get_async_anthropic
 from app.state import get_preferences
 from app.models import RoutineProposal, WeeklyReview, Workout
+from app.units import routine_weights_to_kg, to_display
 
 # One structured response: narrative + a few complete, approvable routine changes.
 _SET = {
     "type": "object",
     "properties": {
         "type": {"type": "string", "enum": ["normal", "warmup", "failure", "dropset"]},
-        "weight_kg": {"type": ["number", "null"]},
+        # In the user's DISPLAY unit (see instructions), converted to kg server-side. null
+        # only for genuinely bodyweight movements.
+        "weight": {"type": ["number", "null"]},
         "reps": {"type": ["integer", "null"]},
     },
-    "required": ["type", "weight_kg", "reps"],
+    "required": ["type", "weight", "reps"],
     "additionalProperties": False,
 }
 _EXERCISE = {
@@ -80,7 +83,8 @@ _REVIEW_SCHEMA = {
 
 _INSTRUCTIONS = """
 You are writing this user's weekly training review. Use the signals and their current
-routines below (weights in kg).
+routines below. (Analysis signals are in kilograms; the current routines are shown in the
+user's display unit - see the unit note.)
 
 How to read the data (important): this user trains mostly hypertrophy - only ~14% of their
 sets are heavy (see `training_mix`), so DO NOT judge progress by estimated 1RM alone. The
@@ -105,6 +109,13 @@ Write:
    lateral/rear-delt volume only if under target; do NOT add pressing volume to fix delts.
    `changes_summary` is a one-line diff.
 
+   Each set's `weight` is in the user's DISPLAY unit (stated below), NOT kilograms - the app
+   converts it. The current routines below are already shown in that unit, so keep the same
+   unit. Use real, round gym numbers (in pounds use multiples of 5 like 135, 185, 225; in
+   kilograms multiples of 2.5), grounded in the weights they actually lift. Give every
+   working set (normal/failure/dropset) a concrete `weight` AND `reps`; use `weight: null`
+   only for genuinely bodyweight movements. Never emit converted-looking fractions like 132.3.
+
 If `bodyweight.stale` is true, that reading is their last known weight (as of `as_of`), not
 current, so say so rather than treating it as today's weight. Use relative strength (est-1RM
 per bodyweight) when it adds insight.
@@ -128,8 +139,9 @@ def _fallback(signals: dict) -> dict:
 async def _generate_llm(settings, signals: dict, routines: list[dict], unit: str) -> dict:
     client = get_async_anthropic()
     unit_note = (
-        f"Write the `narrative` with weights in {unit} (signals are in kg; 1 kg = 2.2046 lb). "
-        "The routine `weight_kg` fields must stay in KILOGRAMS (they are sent to Hevy)."
+        f"The user's display unit is {unit}. Write the `narrative` with weights in {unit}. "
+        f"The analysis SIGNALS below are in kilograms (1 kg = 2.2046 lb), but the CURRENT "
+        f"ROUTINES and every routine `weight` you propose are in {unit} - do not switch to kg."
     )
     user_msg = (
         f"{_INSTRUCTIONS}\n\n{unit_note}\n\nSIGNALS:\n{json.dumps(signals, indent=2, default=str)}"
@@ -168,7 +180,9 @@ def _bodyweight_signal(session: Session) -> Optional[dict]:
     }
 
 
-def _current_routines(routines_raw: list[dict]) -> list[dict]:
+def _current_routines(routines_raw: list[dict], unit: str) -> list[dict]:
+    """Current Hevy routines with set weights converted to the user's display unit, so the
+    model reasons and proposes in one consistent unit."""
     out = []
     for r in routines_raw:
         out.append(
@@ -180,7 +194,7 @@ def _current_routines(routines_raw: list[dict]) -> list[dict]:
                         "title": ex.get("title"),
                         "exercise_template_id": ex.get("exercise_template_id"),
                         "sets": [
-                            {"type": s.get("type"), "weight_kg": s.get("weight_kg"), "reps": s.get("reps")}
+                            {"type": s.get("type"), "weight": to_display(s.get("weight_kg"), unit), "reps": s.get("reps")}
                             for s in ex.get("sets", [])
                         ],
                     }
@@ -216,10 +230,11 @@ async def generate_weekly_review(session: Session, client: HevyClient) -> dict:
         "bodyweight": _bodyweight_signal(session),
     }
 
-    routines = _current_routines(await client.get_routines())
+    weight_unit = get_preferences(session)["weight_unit"]
+    routines = _current_routines(await client.get_routines(), weight_unit)
 
     if settings.anthropic_configured:
-        review = await _generate_llm(settings, signals, routines, get_preferences(session)["weight_unit"])
+        review = await _generate_llm(settings, signals, routines, weight_unit)
     else:
         review = _fallback(signals)
 
@@ -227,13 +242,15 @@ async def generate_weekly_review(session: Session, client: HevyClient) -> dict:
 
     proposals: list[dict] = []
     for ch in review.get("proposed_changes", []):
+        # Model proposes `weight` in the display unit; store canonical `weight_kg`.
+        routine_payload = routine_weights_to_kg(ch.get("routine", {}), weight_unit)
         row = RoutineProposal(
             status="pending",
             kind=ch.get("kind", "update"),
             target_routine_id=ch.get("target_routine_id"),
             source="weekly",
             title=ch.get("title", "Routine update"),
-            payload=ch.get("routine", {}),
+            payload=routine_payload,
             diff={
                 "rationale": strip_dashes(ch.get("rationale")),
                 "changes_summary": strip_dashes(ch.get("changes_summary")),
