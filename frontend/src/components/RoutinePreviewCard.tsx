@@ -44,6 +44,7 @@ export function RoutinePreviewCard({
   const [setsEdited, setSetsEdited] = useState(false);
 
   const [routineNotes, setRoutineNotes] = useState(noDash(proposal.notes ?? ""));
+  const [folder, setFolder] = useState(noDash(proposal.folder ?? ""));
   const [exercises, setExercises] = useState<EditExercise[]>(() =>
     proposal.exercises.map((e) => ({
       name: e.name,
@@ -59,6 +60,7 @@ export function RoutinePreviewCard({
     return {
       title: proposal.title,
       notes: routineNotes.trim() || undefined,
+      folder: folder.trim() || undefined,
       exercises: exercises.map((e) => ({
         name: e.name,
         rest_seconds: e.rest_seconds,
@@ -142,6 +144,18 @@ export function RoutinePreviewCard({
         onChange={(e) => {
           setSaved(false);
           setRoutineNotes(noDash(e.target.value));
+        }}
+      />
+
+      <label className="ex-sub">Folder {badge ? "(blank keeps its current folder)" : "(groups routines in Hevy)"}</label>
+      <input
+        className="note-edit"
+        value={folder}
+        disabled={!editable}
+        placeholder={badge ? "keep where it is" : "e.g. PPL"}
+        onChange={(e) => {
+          setSaved(false);
+          setFolder(noDash(e.target.value));
         }}
       />
 

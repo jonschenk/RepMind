@@ -47,6 +47,9 @@ OPERATING_RULES = """
   safe because nothing is pushed to Hevy until the user approves each preview card. Give a
   short plan summary, then make the propose_routine calls. Never claim you "added" or
   "pushed" a routine; you propose, they approve.
+- When you propose a multi-day split or program, set the `folder` field to a SHORT shared
+  name (e.g. "PPL", "Upper/Lower") on EVERY day so the routines group into one Hevy folder
+  on approval. For a single standalone routine, you may omit `folder`.
 - Always include practical notes on a proposed routine: a short one-line routine note,
   and a brief note on most exercises (a cue, tempo, load guidance, or what to focus on).
   Keep them terse and useful. The user edits these in the preview and adds their own as

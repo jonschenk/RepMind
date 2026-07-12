@@ -114,6 +114,10 @@ PROPOSE_ROUTINE_TOOL: dict = {
         "properties": {
             "title": {"type": "string"},
             "notes": {"type": "string"},
+            "folder": {
+                "type": "string",
+                "description": "Folder to group this routine under in Hevy. For a multi-day split, use the SAME short folder name (e.g. 'PPL') on every day so they land together. Omit for a standalone one-off routine.",
+            },
             "exercises": {
                 "type": "array",
                 "items": {

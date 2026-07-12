@@ -128,17 +128,32 @@ async def approve_proposal(
             },
         )
 
+    if row.kind == "update" and not row.target_routine_id:
+        raise HTTPException(422, "Update proposal has no target routine id. Nothing pushed.")
+
+    # Destination folder. A new routine goes into its named folder (created or reused); an
+    # update keeps the routine where it already lives, because a PUT overwrites the whole
+    # routine and omitting folder_id would eject it into "My Routines". A user-typed folder
+    # name on the card overrides either way.
+    folder_name = (payload.get("folder") or "").strip()
+    folder_id: Optional[int] = None
+    if folder_name:
+        folder_id = await client.find_or_create_folder(folder_name)
+    elif row.kind == "update":
+        current = next(
+            (r for r in await client.get_routines() if r.get("id") == row.target_routine_id),
+            None,
+        )
+        folder_id = current.get("folder_id") if current else None
+
     routine = ResolvedRoutine(
         title=payload.get("title", "repMind routine"),
         notes=payload.get("notes"),
+        folder_id=folder_id,
         exercises=exercises,
     )
     body = build_routine_body(routine)
     row.resolved_payload = body
-
-    if row.kind == "update":
-        if not row.target_routine_id:
-            raise HTTPException(422, "Update proposal has no target routine id. Nothing pushed.")
 
     try:
         if row.kind == "update":

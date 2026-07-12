@@ -28,6 +28,7 @@ def _proposal_card(p: RoutineProposal) -> dict:
         "id": p.id,
         "title": p.title,
         "notes": payload.get("notes"),
+        "folder": payload.get("folder"),
         "exercises": payload.get("exercises", []),
         "status": p.status,
     }

@@ -62,9 +62,11 @@ _CHANGE = {
             "properties": {
                 "title": {"type": "string"},
                 "notes": {"type": ["string", "null"]},
+                # Folder for a kind=create routine; null for an update (it keeps its folder).
+                "folder": {"type": ["string", "null"]},
                 "exercises": {"type": "array", "items": _EXERCISE},
             },
-            "required": ["title", "notes", "exercises"],
+            "required": ["title", "notes", "folder", "exercises"],
             "additionalProperties": False,
         },
     },
@@ -115,6 +117,8 @@ Write:
    kilograms multiples of 2.5), grounded in the weights they actually lift. Give every
    working set (normal/failure/dropset) a concrete `weight` AND `reps`; use `weight: null`
    only for genuinely bodyweight movements. Never emit converted-looking fractions like 132.3.
+   Set `routine.folder` to null for an `update` (it keeps its existing folder). For a `create`
+   that belongs with a split, set `folder` to that split's short folder name.
 
 If `bodyweight.stale` is true, that reading is their last known weight (as of `as_of`), not
 current, so say so rather than treating it as today's weight. Use relative strength (est-1RM

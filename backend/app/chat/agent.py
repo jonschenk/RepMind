@@ -39,6 +39,7 @@ def _create_proposal(session: Session, proposed: dict, weight_unit: str) -> dict
         "id": row.id,
         "title": row.title,
         "notes": payload.get("notes"),
+        "folder": payload.get("folder"),
         "exercises": payload.get("exercises", []),
         "status": row.status,
     }

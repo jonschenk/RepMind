@@ -21,6 +21,7 @@ from typing import Any, Optional
 import httpx
 
 from app.config import Settings
+from app.hevy.schemas import strip_dashes
 
 logger = logging.getLogger("repmind.hevy")
 
@@ -129,8 +130,50 @@ class HevyClient:
         return routines
 
     async def get_routine_folders(self) -> list[dict]:
-        data = await self._get("/v1/routine_folders", params={"page": 1, "pageSize": 10})
-        return data.get("routine_folders", [])
+        folders: list[dict] = []
+        page = 1
+        while True:
+            data = await self._get(
+                "/v1/routine_folders", params={"page": page, "pageSize": 10}
+            )
+            batch = data.get("routine_folders", [])
+            folders.extend(batch)
+            page_count = int(data.get("page_count", 1))
+            if page >= page_count or not batch:
+                break
+            page += 1
+        return folders
+
+    async def create_routine_folder(self, title: str) -> dict:
+        """POST /v1/routine_folders. Hevy creates the folder at index 0. Gated by DRY_RUN."""
+        body = {"routine_folder": {"title": strip_dashes(title)}}
+        if self._dry_run:
+            fake_id = f"dry-run-folder-{uuid.uuid4().hex[:6]}"
+            logger.info("[DRY_RUN] POST /v1/routine_folders not sent. Body: %s", body)
+            return {"id": fake_id, "title": title, "dry_run": True}
+        async with self._client() as client:
+            resp = await client.post(
+                "/v1/routine_folders", json=body, headers={"content-type": "application/json"}
+            )
+        if resp.status_code >= 400:
+            raise HevyError(
+                f"POST /v1/routine_folders failed ({resp.status_code}): {resp.text[:300]}",
+                resp.status_code,
+            )
+        data = resp.json()
+        folder = data.get("routine_folder", data)
+        return folder
+
+    async def find_or_create_folder(self, title: str) -> Any:
+        """Return the id of the folder with this title (case-insensitive), creating it if it
+        doesn't exist. Folders can't be deleted via the API, so we always reuse an existing
+        one rather than making duplicates."""
+        want = title.strip().lower()
+        for f in await self.get_routine_folders():
+            if str(f.get("title", "")).strip().lower() == want:
+                return f.get("id")
+        created = await self.create_routine_folder(title)
+        return created.get("id")
 
     async def get_body_measurements(self, max_pages: int = 6) -> list[dict]:
         out: list[dict] = []

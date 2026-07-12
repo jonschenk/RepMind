@@ -89,6 +89,7 @@ export interface Proposal {
   id: number;
   title: string;
   notes?: string;
+  folder?: string;
   exercises: ProposedExercise[];
   status?: string;
 }
@@ -99,7 +100,7 @@ export interface WeeklyProposal {
   target_routine_id: string | null;
   title: string;
   diff: { rationale?: string; changes_summary?: string } | null;
-  payload: { title: string; notes?: string; exercises: ProposedExercise[] };
+  payload: { title: string; notes?: string; folder?: string; exercises: ProposedExercise[] };
   status: string;
 }
 

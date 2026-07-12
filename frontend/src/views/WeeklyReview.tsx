@@ -16,6 +16,7 @@ function asProposal(p: WeeklyProposal): Proposal {
     id: p.id,
     title: p.payload.title,
     notes: p.payload.notes,
+    folder: p.payload.folder,
     exercises: p.payload.exercises,
     status: p.status,
   };
