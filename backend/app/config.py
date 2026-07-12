@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,6 +20,11 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-opus-4-8"
 
     database_url: str = "sqlite:///./repmind.db"
+
+    # Production: directory of the built frontend (frontend/dist). When present, the API
+    # process also serves the SPA, so no Node runtime is needed on the host. Defaults to
+    # the repo's frontend/dist; override with STATIC_DIR.
+    static_dir: Optional[str] = None
 
     # A lift is "stalled" if it hasn't set a new estimated-1RM PR within this many of its
     # most recent sessions.

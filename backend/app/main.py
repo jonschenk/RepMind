@@ -1,10 +1,12 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from sqlmodel import Session
 
 from app.coach.weekly_review import generate_weekly_review
@@ -96,3 +98,24 @@ def health():
         "full_sync_done": bool(state and state.full_sync_done),
         "workout_count": state.workout_count if state else 0,
     }
+
+
+# --- Serve the built frontend (production) ----------------------------------------
+# When the built SPA exists, this one process serves both API and UI (no Node runtime,
+# single origin, no CORS). Registered AFTER the API routers so /api/* still wins.
+_STATIC_DIR = Path(settings.static_dir) if settings.static_dir else (
+    Path(__file__).resolve().parents[2] / "frontend" / "dist"
+)
+
+if _STATIC_DIR.is_dir():
+    logger.info("Serving built frontend from %s", _STATIC_DIR)
+
+    @app.get("/{full_path:path}")
+    async def spa(full_path: str):
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        candidate = (_STATIC_DIR / full_path).resolve()
+        # Serve a real asset if it exists and stays inside the static dir; else index.html.
+        if full_path and candidate.is_file() and _STATIC_DIR.resolve() in candidate.parents:
+            return FileResponse(candidate)
+        return FileResponse(_STATIC_DIR / "index.html")
