@@ -34,11 +34,11 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
   const [status, setStatus] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Load persisted history (server-side memory) on mount.
+  // Load persisted history (server-side memory) on mount, then jump to the newest message.
   useEffect(() => {
     api
       .chatHistory()
-      .then((rows) =>
+      .then((rows) => {
         setMessages(
           rows.map((r) => ({
             role: r.role as "user" | "assistant",
@@ -46,8 +46,15 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
             tools: [],
             proposals: r.proposals ?? [],
           })),
-        ),
-      )
+        );
+        // Two frames so the list (incl. any routine cards) has laid out before we scroll.
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            const el = scrollRef.current;
+            if (el) el.scrollTop = el.scrollHeight;
+          }),
+        );
+      })
       .catch(() => {});
   }, []);
 
