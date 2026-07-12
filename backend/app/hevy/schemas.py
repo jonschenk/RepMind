@@ -46,13 +46,17 @@ class ResolvedRoutine(BaseModel):
     exercises: list[ResolvedExercise] = []
 
 
-def build_routine_body(routine: ResolvedRoutine) -> dict:
+def build_routine_body(routine: ResolvedRoutine, is_update: bool = False) -> dict:
     """Produce the exact JSON body for POST/PUT /v1/routines.
 
     - Wraps in {"routine": {...}} (bare object silently fails).
     - Sanitizes all notes fields (@ guard).
     - Omits weight_kg / rest_seconds when unset instead of writing a placeholder
       (Hevy defaults rest to 90s when omitted).
+    - folder_id handling differs by verb: POST (create) REQUIRES it present (null when
+      unset, else Hevy 400s reading `undefined`); PUT (update) FORBIDS it (Hevy 400s with
+      "routine.folder_id is not allowed"), and a routine keeps its folder across updates
+      anyway, so it is omitted when `is_update`.
     """
     exercises = []
     for ex in routine.exercises:
@@ -77,13 +81,10 @@ def build_routine_body(routine: ResolvedRoutine) -> dict:
             ex_body["notes"] = notes
         exercises.append(ex_body)
 
-    # folder_id must be PRESENT (null when unset) — Hevy 400s on an absent folder_id,
-    # reading it as `undefined`.
-    inner: dict = {
-        "title": strip_dashes(routine.title),
-        "folder_id": routine.folder_id,
-        "exercises": exercises,
-    }
+    inner: dict = {"title": strip_dashes(routine.title), "exercises": exercises}
+    # On create, folder_id must be PRESENT (null when unset). On update it must be ABSENT.
+    if not is_update:
+        inner["folder_id"] = routine.folder_id
     notes = sanitize_notes(routine.notes)
     if notes:
         inner["notes"] = notes

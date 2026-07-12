@@ -147,17 +147,22 @@ export function RoutinePreviewCard({
         }}
       />
 
-      <label className="ex-sub">Folder {badge ? "(blank keeps its current folder)" : "(groups routines in Hevy)"}</label>
-      <input
-        className="note-edit"
-        value={folder}
-        disabled={!editable}
-        placeholder={badge ? "keep where it is" : "e.g. PPL"}
-        onChange={(e) => {
-          setSaved(false);
-          setFolder(noDash(e.target.value));
-        }}
-      />
+      {/* Folder only applies to new routines; Hevy won't move an existing one on update. */}
+      {!badge && (
+        <>
+          <label className="ex-sub">Folder (groups routines in Hevy)</label>
+          <input
+            className="note-edit"
+            value={folder}
+            disabled={!editable}
+            placeholder="e.g. PPL (leave blank for My Routines)"
+            onChange={(e) => {
+              setSaved(false);
+              setFolder(noDash(e.target.value));
+            }}
+          />
+        </>
+      )}
 
       {exercises.map((ex, i) => (
         <div key={i}>
