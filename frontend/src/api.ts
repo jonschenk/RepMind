@@ -17,13 +17,25 @@ export interface TrackedExercise {
   sessions: number;
 }
 
-export interface StalledLift {
+export interface RepMix {
+  strength: number;
+  hypertrophy: number;
+  endurance: number;
+  total_sets: number;
+}
+
+export type Verdict = "progressing" | "holding" | "regressing" | "new";
+
+export interface ProgressionItem {
   exercise: string;
   template_id: string | null;
-  best_est_1rm: number;
-  current_est_1rm: number;
-  sessions_since_pr: number;
-  last_pr_date: string | null;
+  sessions: number;
+  verdict: Verdict;
+  reason: string;
+  rep_mix: RepMix;
+  best_est_1rm: number | null;
+  volume_change_pct?: number;
+  recent_best_set?: { weight_kg: number; reps: number };
 }
 
 export interface VolumeRow {
@@ -34,15 +46,22 @@ export interface VolumeRow {
 
 export interface DashboardData {
   exercises: TrackedExercise[];
-  stalled_lifts: StalledLift[];
+  progression: ProgressionItem[];
+  training_mix: RepMix;
   weekly_volume: VolumeRow[];
 }
 
-export interface TrendPoint {
-  date: string | null;
-  est_1rm: number;
-  top_weight_kg: number;
-  top_reps: number;
+export interface TrendSeriesPoint {
+  label: string;
+  value: number | null;
+  reps?: number;
+}
+
+export interface TrendResponse {
+  exercise: string;
+  est_1rm: TrendSeriesPoint[];
+  top_set: TrendSeriesPoint[];
+  volume: TrendSeriesPoint[];
 }
 
 export interface ProposedSet {
@@ -91,9 +110,10 @@ export interface WeeklyReviewData {
   narrative?: string;
   signals?: {
     training_days: number;
-    volume: VolumeReportRow[];
-    prs: { exercise: string; est_1rm: number; prev_best: number; gain: number; date: string }[];
-    heavy_lane_stalls: { exercise: string; best_est_1rm: number; recent_best_est_1rm: number; sessions_since_pr: number }[];
+    training_mix: RepMix;
+    muscle_volume: VolumeReportRow[];
+    progression: ProgressionItem[];
+    est_1rm_prs: { exercise: string; est_1rm: number; prev_best: number; gain: number; date: string }[];
     notes: { category: string; exercise: string | null; quote: string; insight: string }[];
   };
   proposals?: WeeklyProposal[];
@@ -116,9 +136,9 @@ export const api = {
   syncStatus: () => fetch("/api/sync/status").then((r) => j<any>(r)),
   syncNow: () => fetch("/api/sync", { method: "POST" }).then((r) => j<any>(r)),
   dashboard: () => fetch("/api/dashboard").then((r) => j<DashboardData>(r)),
-  trend: (exercise: string, formula = "epley") =>
-    fetch(`/api/dashboard/trend?exercise=${encodeURIComponent(exercise)}&formula=${formula}`).then(
-      (r) => j<{ exercise: string; formula: string; series: TrendPoint[] }>(r),
+  trend: (exercise: string) =>
+    fetch(`/api/dashboard/trend?exercise=${encodeURIComponent(exercise)}`).then((r) =>
+      j<TrendResponse>(r),
     ),
   summary: () => fetch("/api/dashboard/summary").then((r) => j<any>(r)),
   updateProposal: (id: number, payload: any) =>

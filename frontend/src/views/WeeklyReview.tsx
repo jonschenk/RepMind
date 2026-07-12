@@ -91,7 +91,7 @@ export function WeeklyReview({ anthropicReady }: { anthropicReady: boolean }) {
             <div className="grid2">
               <div className="panel">
                 <h2>Volume vs targets (hard sets)</h2>
-                {s.volume.map((v) => (
+                {s.muscle_volume.map((v) => (
                   <div className={`stalled-row ${v.priority ? "priority-row" : ""}`} key={v.muscle}>
                     <div>
                       <div className="name">{v.muscle}</div>
@@ -105,23 +105,31 @@ export function WeeklyReview({ anthropicReady }: { anthropicReady: boolean }) {
               </div>
 
               <div className="panel">
-                <h2>PRs this week</h2>
-                {s.prs.length === 0 && <div className="muted">No est-1RM PRs this week.</div>}
-                {s.prs.slice(0, 6).map((p) => (
+                <h2>Needs attention</h2>
+                {s.progression.filter((p) => p.verdict === "regressing" || p.verdict === "holding").length === 0 && (
+                  <div className="muted">Everything is progressing.</div>
+                )}
+                {s.progression
+                  .filter((p) => p.verdict === "regressing" || p.verdict === "holding")
+                  .slice(0, 6)
+                  .map((p) => (
+                    <div className="stalled-row" key={p.exercise}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div className="name">{p.exercise}</div>
+                        <div className="meta">{p.reason}</div>
+                      </div>
+                      <span className={`pill ${p.verdict === "regressing" ? "warn" : ""}`}>{p.verdict}</span>
+                    </div>
+                  ))}
+
+                <h2 style={{ marginTop: 16 }}>Est-1RM PRs</h2>
+                {s.est_1rm_prs.length === 0 && <div className="muted">None this window (expected for hypertrophy work).</div>}
+                {s.est_1rm_prs.slice(0, 5).map((p) => (
                   <div className="stalled-row" key={p.exercise}>
                     <span className="name">{p.exercise}</span>
                     <span className="pill good">
                       {fmtWeight(p.est_1rm, unit)} (+{round1(toUnit(p.gain, unit))})
                     </span>
-                  </div>
-                ))}
-
-                <h2 style={{ marginTop: 16 }}>Heavy-lane stalls</h2>
-                {s.heavy_lane_stalls.length === 0 && <div className="muted">Nothing stalling.</div>}
-                {s.heavy_lane_stalls.slice(0, 5).map((x) => (
-                  <div className="stalled-row" key={x.exercise}>
-                    <span className="name">{x.exercise}</span>
-                    <span className="pill warn">{x.sessions_since_pr} since PR</span>
                   </div>
                 ))}
               </div>

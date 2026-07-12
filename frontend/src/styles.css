@@ -50,9 +50,18 @@ header.top .logo { color: var(--accent); }
 .pill.warn { color: var(--warn); border-color: var(--warn); }
 .pill.dry { color: var(--accent); border-color: var(--accent); }
 
-.unit-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-.unit-opt { background: transparent; border: none; color: var(--muted); padding: 5px 10px; cursor: pointer; font-size: 12px; font-weight: 600; }
-.unit-opt.active { background: var(--panel-2); color: var(--text); }
+.unit-toggle, .metric-tabs { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.unit-opt, .metric-tab { background: transparent; border: none; color: var(--muted); padding: 5px 10px; cursor: pointer; font-size: 12px; font-weight: 600; }
+.unit-opt.active, .metric-tab.active { background: var(--panel-2); color: var(--text); }
+
+.repmix { display: flex; height: 5px; border-radius: 3px; overflow: hidden; margin-top: 6px; max-width: 240px; background: var(--panel-2); }
+.repmix > div { height: 100%; }
+
+.mix-row { display: flex; align-items: center; gap: 10px; margin: 7px 0; }
+.mix-label { width: 160px; font-size: 13px; color: var(--muted); }
+.mix-track { flex: 1; height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
+.mix-fill { height: 100%; }
+.mix-pct { width: 42px; text-align: right; font-size: 13px; }
 
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
 .panel h2 { font-size: 15px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }

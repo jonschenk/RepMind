@@ -14,7 +14,7 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.analysis import prs, variations, volume
+from app.analysis import progression, prs, volume
 from app.analysis.notes import extract_note_themes
 from app.chat.prompt import NO_DASH_RULE, load_coach_context
 from app.config import get_settings
@@ -82,18 +82,28 @@ _INSTRUCTIONS = """
 You are writing this user's weekly training review. Use the signals and their current
 routines below (weights in kg).
 
+How to read the data (important): this user trains mostly hypertrophy - only ~14% of their
+sets are heavy (see `training_mix`), so DO NOT judge progress by estimated 1RM alone. The
+`progression` list is the primary signal: each lift has a verdict (progressing / holding /
+regressing) judged across load, reps, AND volume-load, with a reason. A lift adding reps or
+volume is progressing even with a flat 1RM - do not call it stalled. Treat a lift as a
+problem only if it is `regressing`, or `holding` while it matters. `est_1rm_prs` is a
+nice-to-have, not the headline. Effort/RPE is not logged, so infer effort from notes.
+
 Write:
-1. `narrative`: a direct, coach-voiced markdown review of the past week. Cover what
-   progressed (PRs), what's stalling (heavy-lane only - ignore hypertrophy-day dips), how
-   their volume sits vs targets (especially side/rear delts, their priority weak point),
-   and anything their notes flag (pain, fatigue, technique). Be specific and concise.
+1. `narrative`: a direct, coach-voiced markdown review of the past week. Lead with what's
+   genuinely progressing vs regressing (from `progression`, citing the reason - volume, reps,
+   or load), how volume sits vs targets (especially side/rear delts, their priority weak
+   point), whether the rep-range mix fits their goals, and anything their notes flag (pain,
+   fatigue, technique). Be specific and concise.
 2. `proposed_changes`: 2 to 4 concrete, high-value routine changes. Prefer `update` to an
    existing routine (give its `target_routine_id`); use `create` only for a genuinely new
    routine. For an `update`, `routine` must be the COMPLETE routine as it should look after
    your change (all exercises and sets), because the push overwrites the whole routine. Use
-   the user's real exercise names. Apply progressive overload where they beat targets at low
-   RPE; add lateral/rear-delt volume only if under target; do NOT add pressing volume to fix
-   delts; address any stalled or grindy lift explicitly. `changes_summary` is a one-line diff.
+   the user's real exercise names. Drive progressive overload the way they actually train
+   (more reps or more volume, not just heavier); prioritize the `regressing` lifts; add
+   lateral/rear-delt volume only if under target; do NOT add pressing volume to fix delts.
+   `changes_summary` is a one-line diff.
 
 Respect the user's training style and never use em dashes.
 """.strip()
@@ -196,11 +206,11 @@ async def generate_weekly_review(session: Session, client: HevyClient) -> dict:
     signals = {
         "period": {"start": start.isoformat(), "end": end.isoformat()},
         "training_days": training_days,
-        "volume": volume.muscle_volume_report(session, start, end),
-        "prs": prs.prs_in_period(session, start, end),
-        "heavy_lane_stalls": variations.variation_aware_stalled(
-            session, settings.stall_lookback_sessions, settings.heavy_rep_threshold
-        ),
+        "training_mix": progression.training_mix(session),
+        "muscle_volume": volume.muscle_volume_report(session, start, end),
+        # Primary progress signal: verdict across load + reps + volume per lift.
+        "progression": progression.progression_overview(session, settings.stall_lookback_sessions),
+        "est_1rm_prs": prs.prs_in_period(session, start, end),
         "notes": notes.get("themes", []),
         "bodyweight": await _bodyweight_signal(client),
     }

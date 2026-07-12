@@ -6,16 +6,12 @@ rule-based fallback is returned so the dashboard still works."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlmodel import Session
 
-from app.analysis.trends import (
-    exercise_trend,
-    list_tracked_exercises,
-    stalled_lifts,
-    weekly_volume_by_muscle,
-)
+from app.analysis import progression
+from app.analysis import volume as volume_mod
 from app.chat.prompt import NO_DASH_RULE, load_coach_context
 from app.config import get_settings
 from app.hevy.schemas import strip_dashes
@@ -24,66 +20,34 @@ from app.state import get_preferences, get_state, set_state
 
 SUMMARY_KEY = "dashboard_summary"
 
-_LATERAL_REAR_KEYWORDS = ("lateral", "lat raise", "face pull", "rear delt", "reverse fly", "reverse pec")
-
-
-def _improving_lifts(session: Session, lookback: int) -> list[dict]:
-    out = []
-    for ex in list_tracked_exercises(session, min_sessions=lookback + 1):
-        series = exercise_trend(session, ex["template_id"] or ex["exercise"])
-        if len(series) < lookback + 1:
-            continue
-        ests = [s["est_1rm"] for s in series]
-        if max(ests[-lookback:]) > max(ests[:-lookback]):
-            out.append(
-                {
-                    "exercise": ex["exercise"],
-                    "best_est_1rm": max(ests),
-                    "prev_best": round(max(ests[:-lookback]), 1),
-                }
-            )
-    return sorted(out, key=lambda d: d["best_est_1rm"] - d["prev_best"], reverse=True)[:5]
-
 
 def compute_signals(session: Session) -> dict:
     settings = get_settings()
     lookback = settings.stall_lookback_sessions
+    end = datetime.utcnow()
+    start = end - timedelta(days=14)
 
-    volume = weekly_volume_by_muscle(session)
-    recent_weeks = sorted({v["week"] for v in volume})[-2:]
-    recent_volume = [v for v in volume if v["week"] in recent_weeks]
-
-    # Side/rear-delt accessory frequency in recent weeks (the user's stated weak point).
-    lateral_rear_sessions = 0
-    seen = set()
-    for ex in list_tracked_exercises(session, min_sessions=1):
-        title = ex["exercise"].lower()
-        if any(k in title for k in _LATERAL_REAR_KEYWORDS):
-            series = exercise_trend(session, ex["template_id"] or ex["exercise"])
-            for s in series:
-                if s["date"] and s["date"][:10] not in seen:
-                    seen.add(s["date"][:10])
-    lateral_rear_sessions = len(seen)
-
+    overview = progression.progression_overview(session, lookback)
     return {
-        "stalled_lifts": stalled_lifts(session, lookback)[:5],
-        "improving_lifts": _improving_lifts(session, lookback),
-        "recent_volume_by_muscle": recent_volume,
-        "lateral_rear_delt_sessions_logged": lateral_rear_sessions,
+        "training_mix": progression.training_mix(session),
+        "regressing": [p for p in overview if p["verdict"] == "regressing"][:6],
+        "progressing": [p for p in overview if p["verdict"] == "progressing"][:6],
+        "muscle_volume_2wk": volume_mod.muscle_volume_report(session, start, end),
         "lookback_sessions": lookback,
     }
 
 
 def _fallback_summary(signals: dict) -> str:
     parts = ["**This week's focus**"]
-    if signals["stalled_lifts"]:
-        names = ", ".join(s["exercise"] for s in signals["stalled_lifts"][:3])
-        parts.append(f"- Stalled: {names}. Change a variable (rep range, intensity, or volume).")
-    if signals["improving_lifts"]:
-        names = ", ".join(s["exercise"] for s in signals["improving_lifts"][:3])
-        parts.append(f"- Trending up: {names}. Keep pushing.")
-    if signals["lateral_rear_delt_sessions_logged"] == 0:
-        parts.append("- No lateral/rear-delt work logged recently — that's the priority weak point. Add cable lateral raises and face pulls, high rep.")
+    if signals["regressing"]:
+        names = ", ".join(p["exercise"] for p in signals["regressing"][:3])
+        parts.append(f"- Regressing: {names}. Rebuild the working volume before chasing load.")
+    if signals["progressing"]:
+        names = ", ".join(p["exercise"] for p in signals["progressing"][:3])
+        parts.append(f"- Progressing: {names}. Keep driving reps and volume.")
+    delt = next((v for v in signals["muscle_volume_2wk"] if v.get("priority")), None)
+    if delt and delt["status"] == "under":
+        parts.append("- Side/rear delts under target. Add cable laterals and face pulls, high rep.")
     return "\n".join(parts)
 
 
@@ -100,12 +64,14 @@ async def generate_summary(session: Session) -> dict:
     unit = get_preferences(session)["weight_unit"]
     client = get_async_anthropic()
     user_msg = (
-        "Here are deterministic signals computed from the user's last few weeks of Hevy "
-        "data (weights in kg). Write a short, direct 'what to improve this week' card "
-        "(~120-160 words, markdown, coach voice). Prioritize the user's stated weak point "
-        "(side/rear delts) and address any stalled lifts specifically. Don't restate every "
-        f"number — give judgment. Present all weights in {unit} (signals are kg; 1 kg = "
-        "2.2046 lb).\n\n"
+        "Deterministic signals from the user's recent Hevy data (weights in kg). Write a "
+        "short, direct 'what to improve this week' card (~120-160 words, markdown, coach "
+        "voice). This user trains mostly hypertrophy, so judge progress by the `progression` "
+        "verdicts (progressing/holding/regressing, each with a reason across load, reps, and "
+        "volume), NOT by estimated 1RM. Call out what's regressing, protect what's "
+        "progressing, and check the side/rear-delt priority in `muscle_volume_2wk`. Give "
+        f"judgment, don't restate every number. Present weights in {unit} (signals are kg; "
+        "1 kg = 2.2046 lb).\n\n"
         f"SIGNALS:\n{json.dumps(signals, indent=2, default=str)}"
     )
     resp = await client.messages.create(

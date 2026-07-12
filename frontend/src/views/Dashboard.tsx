@@ -1,9 +1,34 @@
 import { useEffect, useState } from "react";
-import { api, DashboardData, Health } from "../api";
-import { StalledLiftCard } from "../components/StalledLiftCard";
+import { api, DashboardData, Health, RepMix } from "../api";
+import { ProgressionCard } from "../components/ProgressionCard";
 import { SummaryCard } from "../components/SummaryCard";
 import { TrendChart } from "../components/TrendChart";
 import { VolumeChart } from "../components/VolumeChart";
+
+function TrainingMixPanel({ mix }: { mix: RepMix }) {
+  const rows: [string, number, string][] = [
+    ["Strength (1-5 reps)", mix.strength, "var(--accent-2)"],
+    ["Hypertrophy (6-12)", mix.hypertrophy, "var(--good)"],
+    ["Endurance (13+)", mix.endurance, "var(--warn)"],
+  ];
+  return (
+    <div className="panel">
+      <h2>Training mix</h2>
+      <div className="muted" style={{ marginBottom: 10, fontSize: 13 }}>
+        {mix.total_sets} working sets, by rep range.
+      </div>
+      {rows.map(([label, pct, color]) => (
+        <div className="mix-row" key={label}>
+          <span className="mix-label">{label}</span>
+          <div className="mix-track">
+            <div className="mix-fill" style={{ width: `${pct}%`, background: color }} />
+          </div>
+          <span className="mix-pct">{pct}%</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function Dashboard({ health }: { health: Health | null }) {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -26,13 +51,11 @@ export function Dashboard({ health }: { health: Health | null }) {
         </div>
       )}
       <SummaryCard enabled={!!health?.anthropic_configured} />
+      <ProgressionCard items={data.progression} />
       <div className="grid2">
-        <StalledLiftCard lifts={data.stalled_lifts} />
+        <TrainingMixPanel mix={data.training_mix} />
         <div className="panel">
-          <h2>Tracked lifts</h2>
-          <div className="muted" style={{ marginBottom: 8 }}>
-            {data.exercises.length} exercises with logged working sets.
-          </div>
+          <h2>Most-trained lifts</h2>
           {data.exercises.slice(0, 8).map((e) => (
             <div className="stalled-row" key={e.exercise}>
               <span className="name">{e.exercise}</span>

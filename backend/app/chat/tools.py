@@ -11,7 +11,7 @@ from typing import Any
 
 from sqlmodel import Session, select
 
-from app.analysis import trends
+from app.analysis import progression, trends
 from app.config import get_settings
 from app.hevy import HevyClient
 from app.hevy.resolve import search_templates
@@ -21,10 +21,34 @@ from app.models import Workout, WorkoutSet
 
 READ_TOOLS: list[dict] = [
     {
+        "name": "get_progression",
+        "description": (
+            "Per-lift progression verdicts (progressing / holding / regressing) for lifts "
+            "currently in rotation, judged across load, reps, AND volume-load together, each "
+            "with a reason and the lift's rep-range mix. Prefer this over estimated 1RM for "
+            "judging progress - this user trains mostly hypertrophy, so a flat 1RM does not "
+            "mean stalled."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_lift_progression",
+        "description": (
+            "Detailed progression for ONE lift: rep-range mix, best set, best estimated 1RM, "
+            "the volume-vs-load-vs-reps verdict and its reason."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"exercise": {"type": "string"}},
+            "required": ["exercise"],
+        },
+    },
+    {
         "name": "get_exercise_trend",
         "description": (
-            "Get the estimated-1RM trend over time for one exercise (best working set per "
-            "session, oldest to newest). Weights in kg. Use to answer 'how has X progressed'."
+            "Estimated-1RM trend over time for one exercise (best working set per session). "
+            "This is only the top-end strength lens; use get_lift_progression for the fuller "
+            "picture. Weights in kg."
         ),
         "input_schema": {
             "type": "object",
@@ -51,11 +75,6 @@ READ_TOOLS: list[dict] = [
                 "limit": {"type": "integer", "description": "How many recent workouts (default 8)."},
             },
         },
-    },
-    {
-        "name": "get_stalled_lifts",
-        "description": "List lifts that haven't set a new estimated-1RM PR within their recent sessions.",
-        "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "search_exercises",
@@ -130,8 +149,12 @@ def _get_exercise_trend(session: Session, inp: dict) -> Any:
     return trends.exercise_trend(session, inp["exercise"], inp.get("formula", "epley"))
 
 
-def _get_stalled_lifts(session: Session, inp: dict) -> Any:
-    return trends.stalled_lifts(session, get_settings().stall_lookback_sessions)
+def _get_progression(session: Session, inp: dict) -> Any:
+    return progression.progression_overview(session, get_settings().stall_lookback_sessions)
+
+
+def _get_lift_progression(session: Session, inp: dict) -> Any:
+    return progression.lift_progression(session, inp["exercise"])
 
 
 def _search_exercises(session: Session, inp: dict) -> Any:
@@ -193,8 +216,10 @@ async def execute_read_tool(
             result = _get_exercise_trend(session, inp)
         elif name == "get_workout_history":
             result = _get_workout_history(session, inp)
-        elif name == "get_stalled_lifts":
-            result = _get_stalled_lifts(session, inp)
+        elif name == "get_progression":
+            result = _get_progression(session, inp)
+        elif name == "get_lift_progression":
+            result = _get_lift_progression(session, inp)
         elif name == "search_exercises":
             result = _search_exercises(session, inp)
         elif name == "list_routines":
