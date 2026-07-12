@@ -19,8 +19,8 @@ from sqlmodel import Session, select
 from app.analysis.trends import WORKING_SET_TYPES, estimated_1rm
 from app.models import ExerciseTemplate, WorkoutSet
 
-STRENGTH_MAX = 5      # reps <= 5 -> strength
-HYPERTROPHY_MAX = 12  # 6-12 -> hypertrophy; 13+ -> endurance/metabolite
+STRENGTH_MAX = 5       # reps <= 5 -> strength
+HYPERTROPHY_MAX = 15   # 6-15 -> hypertrophy; 16+ -> endurance/metabolite
 
 
 def _lift_sets(session: Session, exercise: str) -> list[WorkoutSet]:
