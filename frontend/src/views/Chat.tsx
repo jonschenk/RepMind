@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Proposal, streamChat } from "../api";
 import { RoutinePreviewCard } from "../components/RoutinePreviewCard";
+import { renderLite } from "../renderLite";
 
 interface Msg {
   role: "user" | "assistant";
@@ -85,7 +86,17 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
         )}
         {messages.map((m, i) => (
           <div key={i} className={`msg ${m.role}`}>
-            {m.content || (m.role === "assistant" && busy && i === messages.length - 1 ? "…" : "")}
+            {m.role === "assistant" ? (
+              m.content ? (
+                <div className="msg-md">{renderLite(m.content)}</div>
+              ) : busy && i === messages.length - 1 ? (
+                "…"
+              ) : (
+                ""
+              )
+            ) : (
+              m.content
+            )}
             {m.tools.length > 0 && (
               <div className="toolchips">
                 {m.tools.map((t, j) => (

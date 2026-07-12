@@ -104,6 +104,8 @@ select, input, textarea {
 .msg { max-width: 80%; padding: 12px 14px; border-radius: 12px; white-space: pre-wrap; }
 .msg.user { align-self: flex-end; background: var(--accent-2); color: #051025; }
 .msg.assistant { align-self: flex-start; background: var(--panel-2); border: 1px solid var(--border); }
+.msg-md > :first-child { margin-top: 0; }
+.msg-md .md-h3 { color: var(--text); }
 .toolchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .toolchip { font-size: 11px; color: var(--muted); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; }
 .composer { display: flex; gap: 10px; margin-top: 14px; }
