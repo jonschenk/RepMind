@@ -12,6 +12,12 @@ _DEFAULT_CONTEXT = (
 # backend/app/chat/prompt.py -> repo root is parents[3]
 _COACH_CONTEXT_PATH = Path(__file__).resolve().parents[3] / "coach-context.md"
 
+# Reusable across every Claude call in the app (chat + dashboard summary).
+NO_DASH_RULE = (
+    "Never use em dashes or en dashes (— or –) anywhere. Use commas, a plain hyphen (-), "
+    "parentheses, or separate sentences instead."
+)
+
 OPERATING_RULES = """
 ## How you work
 

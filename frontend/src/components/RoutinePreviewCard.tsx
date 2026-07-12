@@ -1,22 +1,45 @@
 import { useState } from "react";
-import { api, Proposal } from "../api";
+import { api, Proposal, ProposedSet } from "../api";
 
 // Never allow em/en dashes into notes (hard user preference). Strip on input so the
 // field never even displays one; the backend also strips at push time as a backstop.
 const noDash = (s: string) => s.replace(/[—–]/g, "-");
 
-// Renders a proposed routine as a preview. Routine + per-exercise notes are editable
-// here before pushing. Nothing reaches Hevy until the user clicks Approve & Push.
+const numOrUndef = (v: string): number | undefined => {
+  const n = parseFloat(v);
+  return v.trim() === "" || Number.isNaN(n) ? undefined : n;
+};
+const intOrUndef = (v: string): number | undefined => {
+  const n = parseInt(v, 10);
+  return v.trim() === "" || Number.isNaN(n) ? undefined : n;
+};
+
+interface EditExercise {
+  name: string;
+  rest_seconds?: number;
+  notes: string;
+  sets: ProposedSet[];
+}
+
+// Renders a proposed routine as a preview. Notes and set values are editable here before
+// pushing. Nothing reaches Hevy until the user clicks Approve & Push.
 export function RoutinePreviewCard({ proposal }: { proposal: Proposal }) {
   const [status, setStatus] = useState<string>(proposal.status ?? "pending");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // True once the user changes any set/rep from the coach's proposal.
+  const [setsEdited, setSetsEdited] = useState(false);
 
   const [routineNotes, setRoutineNotes] = useState(noDash(proposal.notes ?? ""));
-  const [exNotes, setExNotes] = useState<string[]>(
-    proposal.exercises.map((e) => noDash(e.notes ?? "")),
+  const [exercises, setExercises] = useState<EditExercise[]>(() =>
+    proposal.exercises.map((e) => ({
+      name: e.name,
+      rest_seconds: e.rest_seconds,
+      notes: noDash(e.notes ?? ""),
+      sets: e.sets.map((s) => ({ type: s.type ?? "normal", weight_kg: s.weight_kg, reps: s.reps })),
+    })),
   );
 
   const editable = status !== "pushed";
@@ -25,18 +48,31 @@ export function RoutinePreviewCard({ proposal }: { proposal: Proposal }) {
     return {
       title: proposal.title,
       notes: routineNotes.trim() || undefined,
-      exercises: proposal.exercises.map((e, i) => ({
+      exercises: exercises.map((e) => ({
         name: e.name,
         rest_seconds: e.rest_seconds,
-        notes: exNotes[i].trim() || undefined,
-        sets: e.sets,
+        notes: e.notes.trim() || undefined,
+        sets: e.sets.map((s) => ({ type: s.type, weight_kg: s.weight_kg, reps: s.reps })),
       })),
     };
   }
 
-  function setExNote(i: number, v: string) {
+  function patchExercise(ei: number, fn: (e: EditExercise) => EditExercise) {
     setSaved(false);
-    setExNotes((prev) => prev.map((n, j) => (j === i ? noDash(v) : n)));
+    setExercises((prev) => prev.map((e, i) => (i === ei ? fn(e) : e)));
+  }
+  const setExNote = (ei: number, v: string) => patchExercise(ei, (e) => ({ ...e, notes: noDash(v) }));
+  function updateSet(ei: number, si: number, patch: Partial<ProposedSet>) {
+    setSetsEdited(true);
+    patchExercise(ei, (e) => ({ ...e, sets: e.sets.map((s, j) => (j === si ? { ...s, ...patch } : s)) }));
+  }
+  function addSet(ei: number) {
+    setSetsEdited(true);
+    patchExercise(ei, (e) => ({ ...e, sets: [...e.sets, { ...(e.sets[e.sets.length - 1] ?? { type: "normal" }) }] }));
+  }
+  function removeSet(ei: number, si: number) {
+    setSetsEdited(true);
+    patchExercise(ei, (e) => ({ ...e, sets: e.sets.filter((_, j) => j !== si) }));
   }
 
   async function save() {
@@ -96,15 +132,13 @@ export function RoutinePreviewCard({ proposal }: { proposal: Proposal }) {
         }}
       />
 
-      {proposal.exercises.map((ex, i) => (
+      {exercises.map((ex, i) => (
         <div key={i}>
           <div className="ex-name">{ex.name}</div>
-          <div className="ex-sub">
-            {ex.rest_seconds != null ? `${ex.rest_seconds}s rest` : "rest: default"}
-          </div>
+          <div className="ex-sub">{ex.rest_seconds != null ? `${ex.rest_seconds}s rest` : "rest: default"}</div>
           <input
             className="note-edit"
-            value={exNotes[i]}
+            value={ex.notes}
             disabled={!editable}
             placeholder="exercise note (cue, tempo, load)…"
             onChange={(e) => setExNote(i, e.target.value)}
@@ -116,21 +150,82 @@ export function RoutinePreviewCard({ proposal }: { proposal: Proposal }) {
                 <th>Type</th>
                 <th>Weight (kg)</th>
                 <th>Reps</th>
+                {editable && <th></th>}
               </tr>
             </thead>
             <tbody>
               {ex.sets.map((s, j) => (
                 <tr key={j}>
                   <td>{j + 1}</td>
-                  <td>{s.type}</td>
-                  <td>{s.weight_kg ?? "—"}</td>
-                  <td>{s.reps ?? "—"}</td>
+                  <td>
+                    {editable ? (
+                      <select
+                        className="set-type"
+                        value={s.type}
+                        onChange={(e) => updateSet(i, j, { type: e.target.value })}
+                      >
+                        <option value="normal">normal</option>
+                        <option value="warmup">warmup</option>
+                        <option value="failure">failure</option>
+                        <option value="dropset">dropset</option>
+                      </select>
+                    ) : (
+                      s.type
+                    )}
+                  </td>
+                  <td>
+                    {editable ? (
+                      <input
+                        className="set-input"
+                        type="number"
+                        step="0.5"
+                        value={s.weight_kg ?? ""}
+                        placeholder="—"
+                        onChange={(e) => updateSet(i, j, { weight_kg: numOrUndef(e.target.value) })}
+                      />
+                    ) : (
+                      s.weight_kg ?? "—"
+                    )}
+                  </td>
+                  <td>
+                    {editable ? (
+                      <input
+                        className="set-input reps"
+                        type="number"
+                        step="1"
+                        value={s.reps ?? ""}
+                        placeholder="—"
+                        onChange={(e) => updateSet(i, j, { reps: intOrUndef(e.target.value) })}
+                      />
+                    ) : (
+                      s.reps ?? "—"
+                    )}
+                  </td>
+                  {editable && (
+                    <td>
+                      <button className="set-remove" title="remove set" onClick={() => removeSet(i, j)}>
+                        ×
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
+          {editable && (
+            <button className="btn ghost add-set" onClick={() => addSet(i)}>
+              + set
+            </button>
+          )}
         </div>
       ))}
+
+      {editable && setsEdited && (
+        <div className="edit-warn">
+          ⚠ You've changed sets or reps from the coach's plan. These edits may not reflect the
+          intended progression or goals. Ask the coach in chat if you want them reworked to fit.
+        </div>
+      )}
 
       <div className="card-actions">
         {editable ? (
@@ -139,7 +234,7 @@ export function RoutinePreviewCard({ proposal }: { proposal: Proposal }) {
               {busy ? "Working…" : "Approve & Push to Hevy"}
             </button>
             <button className="btn ghost" onClick={save} disabled={busy}>
-              Save notes
+              Save changes
             </button>
             {saved && <span className="result-ok">✓ saved</span>}
             <span className="muted" style={{ fontSize: 12 }}>

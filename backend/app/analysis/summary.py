@@ -16,8 +16,9 @@ from app.analysis.trends import (
     stalled_lifts,
     weekly_volume_by_muscle,
 )
-from app.chat.prompt import load_coach_context
+from app.chat.prompt import NO_DASH_RULE, load_coach_context
 from app.config import get_settings
+from app.hevy.schemas import strip_dashes
 from app.llm import get_async_anthropic
 
 _LATERAL_REAR_KEYWORDS = ("lateral", "lat raise", "face pull", "rear delt", "reverse fly", "reverse pec")
@@ -107,8 +108,9 @@ async def generate_summary(session: Session) -> dict:
         max_tokens=1200,
         thinking={"type": "adaptive"},
         output_config={"effort": "medium"},
-        system=load_coach_context(),
+        system=f"{load_coach_context()}\n\n{NO_DASH_RULE}",
         messages=[{"role": "user", "content": user_msg}],
     )
     text = next((b.text for b in resp.content if b.type == "text"), "")
-    return {"generated_at": generated_at, "summary": text.strip(), "signals": signals}
+    # Backstop the no-em-dash rule in case the model slips.
+    return {"generated_at": generated_at, "summary": strip_dashes(text.strip()), "signals": signals}
