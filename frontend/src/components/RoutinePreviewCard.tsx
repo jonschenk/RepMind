@@ -175,6 +175,7 @@ export function RoutinePreviewCard({
             placeholder="exercise note (cue, tempo, load)…"
             onChange={(e) => setExNote(i, e.target.value)}
           />
+          <div className="table-scroll">
           <table>
             <thead>
               <tr>
@@ -249,6 +250,7 @@ export function RoutinePreviewCard({
               ))}
             </tbody>
           </table>
+          </div>
           {editable && (
             <button className="btn ghost add-set" onClick={() => addSet(i)}>
               + set

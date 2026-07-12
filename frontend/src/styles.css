@@ -125,6 +125,7 @@ select, input, textarea {
 .composer textarea { flex: 1; resize: none; min-height: 48px; }
 
 /* Routine preview card */
+.table-scroll { overflow-x: auto; }
 .routine-card { border: 1px solid var(--accent-2); border-radius: 12px; padding: 14px; background: var(--panel); margin-top: 10px; }
 .routine-card h3 { margin: 0 0 4px; }
 .routine-card table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
@@ -145,3 +146,28 @@ select.set-type { padding: 3px 6px; font-size: 13px; }
 .result-ok { color: var(--good); font-size: 13px; }
 .result-err { color: var(--danger); font-size: 13px; }
 .banner { background: var(--panel-2); border: 1px solid var(--warn); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 16px; }
+
+/* --- Mobile --------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .app { padding: 12px; }
+
+  /* The header is a single flex row; let it wrap so the unit toggle, workout
+     count, and Sync button don't push off-screen. */
+  header.top { flex-wrap: wrap; gap: 8px 10px; padding-bottom: 12px; margin-bottom: 16px; }
+  header.top h1 { font-size: 18px; }
+  .tabs { gap: 4px; }
+  .tab { padding: 6px 11px; }
+
+  .grid2 { grid-template-columns: 1fr; }
+
+  /* Chat: give assistant bubbles (which hold routine cards) the full width, and
+     keep any wide set-table scrolling inside its own card, never the page. */
+  .msg { max-width: 92%; }
+  .msg.assistant { max-width: 100%; }
+  .routine-card { padding: 12px; }
+  .routine-card th, .routine-card td { padding: 4px 4px; }
+  .set-input { width: 56px; }
+  .set-input.reps { width: 44px; }
+  select.set-type { padding: 3px 4px; }
+  .chat-wrap { height: calc(100vh - 150px); }
+}
