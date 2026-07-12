@@ -121,7 +121,8 @@ def health():
         "hevy_configured": s.hevy_configured,
         "anthropic_configured": s.anthropic_configured,
         "dry_run": s.dry_run,
-        "model": s.anthropic_model,
+        "chat_model": s.chat_model,
+        "coach_model": s.anthropic_model,
         "full_sync_done": bool(state and state.full_sync_done),
         "workout_count": state.workout_count if state else 0,
     }

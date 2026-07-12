@@ -60,7 +60,7 @@ async def stream_chat(
         capped = True
         for _ in range(MAX_TOOL_ITERATIONS):
             async with anthropic.messages.stream(
-                model=settings.anthropic_model,
+                model=settings.chat_model,
                 max_tokens=8000,
                 thinking={"type": "adaptive"},
                 system=system,
