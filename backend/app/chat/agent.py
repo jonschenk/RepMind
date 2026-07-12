@@ -17,7 +17,9 @@ from app.llm import get_async_anthropic
 from app.models import RoutineProposal
 from app.state import get_preferences
 
-MAX_TOOL_ITERATIONS = 6
+# A full multi-day split needs many tool calls (exercise lookups + one propose_routine
+# per day), so this must be generous or the model gets cut off mid-plan.
+MAX_TOOL_ITERATIONS = 30
 
 
 def _create_proposal(session: Session, proposed: dict) -> dict:
@@ -55,6 +57,7 @@ async def stream_chat(
     ]
 
     try:
+        capped = True
         for _ in range(MAX_TOOL_ITERATIONS):
             async with anthropic.messages.stream(
                 model=settings.anthropic_model,
@@ -73,6 +76,7 @@ async def stream_chat(
             messages.append({"role": "assistant", "content": final.content})
 
             if final.stop_reason != "tool_use":
+                capped = False
                 break
 
             tool_results = []
@@ -106,6 +110,11 @@ async def stream_chat(
 
             messages.append({"role": "user", "content": tool_results})
 
+        if capped:
+            yield {
+                "type": "text",
+                "text": "\n\n_(I stopped after a lot of steps to avoid running away. Say \"continue\" and I'll finish the plan.)_",
+            }
         yield {"type": "done"}
     except Exception as exc:  # never leave the SSE stream hanging
         yield {"type": "error", "message": str(exc)}

@@ -96,6 +96,15 @@ class RoutineProposal(SQLModel, table=True):
     error: Optional[str] = None
 
 
+class ChatMessage(SQLModel, table=True):
+    """Persisted chat turns (text only) so the coach has memory across sessions."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    role: str  # user | assistant
+    content: str
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
 class AppState(SQLModel, table=True):
     """Tiny key/value memory store: cached generated content (e.g. the dashboard summary,
     so it isn't regenerated on every page load) and user preferences (e.g. weight unit)."""

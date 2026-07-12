@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Proposal, streamChat } from "../api";
+import { useEffect, useRef, useState } from "react";
+import { api, Proposal, streamChat } from "../api";
 import { RoutinePreviewCard } from "../components/RoutinePreviewCard";
 import { renderLite } from "../renderLite";
 
@@ -16,11 +16,33 @@ const SUGGESTIONS = [
   "Generate my next push day, prioritizing side and rear delts.",
 ];
 
+// Friendly labels for the live "working" indicator.
+const TOOL_LABEL: Record<string, string> = {
+  get_progression: "Reviewing your progression",
+  get_lift_progression: "Checking a lift in detail",
+  get_exercise_trend: "Pulling a lift's trend",
+  get_workout_history: "Reading recent workouts",
+  search_exercises: "Looking up exercises",
+  list_routines: "Checking your routines",
+  propose_routine: "Drafting the routine",
+};
+
 export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Load persisted history (server-side memory) on mount.
+  useEffect(() => {
+    api
+      .chatHistory()
+      .then((rows) =>
+        setMessages(rows.map((r) => ({ role: r.role as "user" | "assistant", content: r.content, tools: [], proposals: [] }))),
+      )
+      .catch(() => {});
+  }, []);
 
   function scrollDown() {
     requestAnimationFrame(() => {
@@ -31,15 +53,14 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
 
   async function send(text: string) {
     if (!text.trim() || busy) return;
-    const userMsg: Msg = { role: "user", content: text, tools: [], proposals: [] };
-    const history = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }));
     setMessages((prev) => [
       ...prev,
-      userMsg,
+      { role: "user", content: text, tools: [], proposals: [] },
       { role: "assistant", content: "", tools: [], proposals: [] },
     ]);
     setInput("");
     setBusy(true);
+    setStatus("Thinking");
     scrollDown();
 
     const patchAssistant = (fn: (m: Msg) => Msg) =>
@@ -50,17 +71,26 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
       });
 
     try {
-      await streamChat(history, (e) => {
-        if (e.type === "text") patchAssistant((m) => ({ ...m, content: m.content + e.text }));
-        else if (e.type === "tool_use") patchAssistant((m) => ({ ...m, tools: [...m.tools, e.name] }));
-        else if (e.type === "proposal") patchAssistant((m) => ({ ...m, proposals: [...m.proposals, e.proposal] }));
-        else if (e.type === "error") patchAssistant((m) => ({ ...m, content: m.content + `\n\n⚠️ ${e.message}` }));
+      await streamChat(text, (e) => {
+        if (e.type === "text") {
+          setStatus(null);
+          patchAssistant((m) => ({ ...m, content: m.content + e.text }));
+        } else if (e.type === "tool_use") {
+          setStatus(TOOL_LABEL[e.name] ?? "Working");
+          patchAssistant((m) => ({ ...m, tools: [...m.tools, e.name] }));
+        } else if (e.type === "proposal") {
+          setStatus("Drafting the routine");
+          patchAssistant((m) => ({ ...m, proposals: [...m.proposals, e.proposal] }));
+        } else if (e.type === "error") {
+          patchAssistant((m) => ({ ...m, content: m.content + `\n\n⚠️ ${e.message}` }));
+        }
         scrollDown();
       });
     } catch (err: any) {
       patchAssistant((m) => ({ ...m, content: m.content + `\n\n⚠️ ${err.message ?? err}` }));
     } finally {
       setBusy(false);
+      setStatus(null);
       scrollDown();
     }
   }
@@ -75,7 +105,7 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
           <div className="panel">
             <h2>Ask your coach</h2>
             <div className="muted" style={{ marginBottom: 10 }}>
-              It reads your real Hevy history. Routines are proposed, never pushed without your approval.
+              It reads your real Hevy history and remembers past chats. Routines are proposed, never pushed without your approval.
             </div>
             {SUGGESTIONS.map((s) => (
               <button key={s} className="btn ghost" style={{ display: "block", marginBottom: 8, width: "100%", textAlign: "left" }} onClick={() => send(s)}>
@@ -84,31 +114,34 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
             ))}
           </div>
         )}
-        {messages.map((m, i) => (
-          <div key={i} className={`msg ${m.role}`}>
-            {m.role === "assistant" ? (
-              m.content ? (
-                <div className="msg-md">{renderLite(m.content)}</div>
-              ) : busy && i === messages.length - 1 ? (
-                "…"
+        {messages.map((m, i) => {
+          const isLast = i === messages.length - 1;
+          return (
+            <div key={i} className={`msg ${m.role}`}>
+              {m.role === "assistant" ? (
+                m.content && <div className="msg-md">{renderLite(m.content)}</div>
               ) : (
-                ""
-              )
-            ) : (
-              m.content
-            )}
-            {m.tools.length > 0 && (
-              <div className="toolchips">
-                {m.tools.map((t, j) => (
-                  <span key={j} className="toolchip">🔧 {t}</span>
-                ))}
-              </div>
-            )}
-            {m.proposals.map((p) => (
-              <RoutinePreviewCard key={p.id} proposal={p} />
-            ))}
-          </div>
-        ))}
+                m.content
+              )}
+              {m.role === "assistant" && isLast && busy && (
+                <div className="thinking">
+                  {status ?? "Thinking"}
+                  <span className="dots"><i /><i /><i /></span>
+                </div>
+              )}
+              {m.tools.length > 0 && (
+                <div className="toolchips">
+                  {m.tools.map((t, j) => (
+                    <span key={j} className="toolchip">🔧 {TOOL_LABEL[t] ?? t}</span>
+                  ))}
+                </div>
+              )}
+              {m.proposals.map((p) => (
+                <RoutinePreviewCard key={p.id} proposal={p} />
+              ))}
+            </div>
+          );
+        })}
       </div>
 
       <div className="composer">

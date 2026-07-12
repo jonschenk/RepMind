@@ -106,6 +106,12 @@ select, input, textarea {
 .msg.assistant { align-self: flex-start; background: var(--panel-2); border: 1px solid var(--border); }
 .msg-md > :first-child { margin-top: 0; }
 .msg-md .md-h3 { color: var(--text); }
+.thinking { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; font-style: italic; }
+.thinking .dots { display: inline-flex; gap: 3px; }
+.thinking .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: blink 1.2s infinite; }
+.thinking .dots i:nth-child(2) { animation-delay: 0.2s; }
+.thinking .dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%, 70%, 100% { opacity: 0.25; } 35% { opacity: 1; } }
 .toolchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .toolchip { font-size: 11px; color: var(--muted); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; }
 .composer { display: flex; gap: 10px; margin-top: 14px; }

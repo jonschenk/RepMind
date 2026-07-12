@@ -166,17 +166,19 @@ export const api = {
     }).then((r) => j<any>(r)),
   weeklyReview: () => fetch("/api/weekly").then((r) => j<WeeklyReviewData>(r)),
   generateWeekly: () => fetch("/api/weekly/generate", { method: "POST" }).then((r) => j<any>(r)),
+  chatHistory: () => fetch("/api/chat/history").then((r) => j<{ role: string; content: string }[]>(r)),
 };
 
-// Stream chat via SSE, invoking onEvent for each parsed event.
+// Stream chat via SSE, invoking onEvent for each parsed event. History lives server-side
+// (memory), so we only send the new message.
 export async function streamChat(
-  messages: { role: string; content: string }[],
+  message: string,
   onEvent: (e: ChatEvent) => void,
 ): Promise<void> {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ message }),
   });
   if (!res.ok || !res.body) throw new Error(`chat failed: ${res.status}`);
 
