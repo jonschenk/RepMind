@@ -86,8 +86,18 @@ export const api = {
       (r) => j<{ exercise: string; formula: string; series: TrendPoint[] }>(r),
     ),
   summary: () => fetch("/api/dashboard/summary").then((r) => j<any>(r)),
-  approveProposal: (id: number) =>
-    fetch(`/api/routines/proposals/${id}/approve`, { method: "POST" }).then((r) => j<any>(r)),
+  updateProposal: (id: number, payload: any) =>
+    fetch(`/api/routines/proposals/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ payload }),
+    }).then((r) => j<any>(r)),
+  approveProposal: (id: number, payload?: any) =>
+    fetch(`/api/routines/proposals/${id}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload ? { payload } : {}),
+    }).then((r) => j<any>(r)),
 };
 
 // Stream chat via SSE, invoking onEvent for each parsed event.

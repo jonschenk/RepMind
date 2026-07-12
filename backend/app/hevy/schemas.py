@@ -10,12 +10,18 @@ from typing import Optional
 from pydantic import BaseModel
 
 
+def strip_dashes(text: Optional[str]) -> Optional[str]:
+    """Replace em/en dashes with a plain hyphen. Hard user preference: never em dashes."""
+    if text is None:
+        return None
+    return text.replace("—", "-").replace("–", "-")
+
+
 def sanitize_notes(notes: Optional[str]) -> Optional[str]:
-    """Hevy silently 400s on any `@` in a notes field. Strip it out."""
+    """Hevy silently 400s on any `@` in a notes field. Also enforce the no-em-dash rule."""
     if notes is None:
         return None
-    cleaned = notes.replace("@", "")
-    return cleaned
+    return strip_dashes(notes).replace("@", "")
 
 
 class ResolvedSet(BaseModel):
@@ -73,7 +79,11 @@ def build_routine_body(routine: ResolvedRoutine) -> dict:
 
     # folder_id must be PRESENT (null when unset) — Hevy 400s on an absent folder_id,
     # reading it as `undefined`.
-    inner: dict = {"title": routine.title, "folder_id": routine.folder_id, "exercises": exercises}
+    inner: dict = {
+        "title": strip_dashes(routine.title),
+        "folder_id": routine.folder_id,
+        "exercises": exercises,
+    }
     notes = sanitize_notes(routine.notes)
     if notes:
         inner["notes"] = notes

@@ -87,7 +87,9 @@ select, input, textarea {
 .routine-card th { text-align: left; color: var(--muted); font-weight: 500; padding: 4px 6px; border-bottom: 1px solid var(--border); }
 .routine-card td { padding: 4px 6px; border-bottom: 1px solid var(--border); }
 .ex-name { font-weight: 600; margin-top: 10px; }
-.ex-sub { font-size: 12px; color: var(--muted); }
+.ex-sub { font-size: 12px; color: var(--muted); display: block; margin: 2px 0; }
+.note-edit { width: 100%; margin: 4px 0 2px; font-size: 13px; }
+textarea.note-edit { resize: vertical; }
 .card-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .result-ok { color: var(--good); font-size: 13px; }
 .result-err { color: var(--danger); font-size: 13px; }

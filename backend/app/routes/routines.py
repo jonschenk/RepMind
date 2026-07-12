@@ -1,4 +1,7 @@
+from typing import Any, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.db import get_session
@@ -24,6 +27,16 @@ def list_proposals(session: Session = Depends(get_session)):
     return rows
 
 
+class ProposalUpdate(BaseModel):
+    # Full replacement payload (title, notes, exercises) edited in the preview card.
+    payload: dict[str, Any]
+
+
+class ApproveRequest(BaseModel):
+    # Optional edited payload to push instead of the stored one (edit-then-push).
+    payload: Optional[dict[str, Any]] = None
+
+
 @router.get("/proposals/{proposal_id}")
 def get_proposal(proposal_id: int, session: Session = Depends(get_session)):
     row = session.get(RoutineProposal, proposal_id)
@@ -32,17 +45,45 @@ def get_proposal(proposal_id: int, session: Session = Depends(get_session)):
     return row
 
 
+@router.patch("/proposals/{proposal_id}")
+def update_proposal(
+    proposal_id: int,
+    body: ProposalUpdate,
+    session: Session = Depends(get_session),
+):
+    """Save edits (notes, etc.) to a proposal without pushing. Lets the user refine the
+    routine in the chat preview and add their own notes as they go."""
+    row = session.get(RoutineProposal, proposal_id)
+    if not row:
+        raise HTTPException(404, "Proposal not found")
+    if row.status == "pushed":
+        raise HTTPException(409, "Already pushed to Hevy; edits no longer apply.")
+    row.payload = body.payload
+    row.title = body.payload.get("title", row.title)
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
 @router.post("/proposals/{proposal_id}/approve")
 async def approve_proposal(
     proposal_id: int,
+    body: Optional[ApproveRequest] = None,
     session: Session = Depends(get_session),
     client: HevyClient = Depends(hevy_client_dep),
 ):
     """Resolve exercise names -> Hevy template UUIDs, build the wrapped body, and push.
-    This is the ONLY path that writes a routine to Hevy."""
+    This is the ONLY path that writes a routine to Hevy. If an edited payload is supplied
+    (from the preview card), it is persisted and pushed instead of the stored one."""
     row = session.get(RoutineProposal, proposal_id)
     if not row:
         raise HTTPException(404, "Proposal not found")
+    if body and body.payload:
+        row.payload = body.payload
+        row.title = body.payload.get("title", row.title)
+        session.add(row)
+        session.commit()
     if row.status == "pushed":
         return {
             "id": row.id,
