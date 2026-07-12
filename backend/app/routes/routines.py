@@ -1,0 +1,119 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlmodel import Session, select
+
+from app.db import get_session
+from app.deps import hevy_client_dep
+from app.hevy import HevyClient, HevyError
+from app.hevy.resolve import resolve_template_id
+from app.hevy.schemas import (
+    ResolvedExercise,
+    ResolvedRoutine,
+    ResolvedSet,
+    build_routine_body,
+)
+from app.models import RoutineProposal
+
+router = APIRouter(prefix="/api/routines", tags=["routines"])
+
+
+@router.get("/proposals")
+def list_proposals(session: Session = Depends(get_session)):
+    rows = session.exec(
+        select(RoutineProposal).order_by(RoutineProposal.created_at.desc())
+    ).all()
+    return rows
+
+
+@router.get("/proposals/{proposal_id}")
+def get_proposal(proposal_id: int, session: Session = Depends(get_session)):
+    row = session.get(RoutineProposal, proposal_id)
+    if not row:
+        raise HTTPException(404, "Proposal not found")
+    return row
+
+
+@router.post("/proposals/{proposal_id}/approve")
+async def approve_proposal(
+    proposal_id: int,
+    session: Session = Depends(get_session),
+    client: HevyClient = Depends(hevy_client_dep),
+):
+    """Resolve exercise names -> Hevy template UUIDs, build the wrapped body, and push.
+    This is the ONLY path that writes a routine to Hevy."""
+    row = session.get(RoutineProposal, proposal_id)
+    if not row:
+        raise HTTPException(404, "Proposal not found")
+    if row.status == "pushed":
+        return {
+            "id": row.id,
+            "status": row.status,
+            "hevy_routine_id": row.hevy_routine_id,
+            "already": True,
+        }
+
+    payload = row.payload or {}
+    exercises: list[ResolvedExercise] = []
+    unresolved: list[str] = []
+
+    for ex in payload.get("exercises", []):
+        template_id = resolve_template_id(session, ex.get("name", ""))
+        if not template_id:
+            unresolved.append(ex.get("name", ""))
+            continue
+        sets = [
+            ResolvedSet(
+                type=s.get("type", "normal"),
+                weight_kg=s.get("weight_kg"),
+                reps=s.get("reps"),
+            )
+            for s in ex.get("sets", [])
+        ]
+        exercises.append(
+            ResolvedExercise(
+                exercise_template_id=template_id,
+                rest_seconds=ex.get("rest_seconds"),
+                notes=ex.get("notes"),
+                sets=sets,
+            )
+        )
+
+    if unresolved:
+        # Never push a partial routine — surface the names we couldn't map.
+        raise HTTPException(
+            422,
+            {
+                "message": "Could not resolve some exercises to Hevy templates. Nothing pushed.",
+                "unresolved": unresolved,
+            },
+        )
+
+    routine = ResolvedRoutine(
+        title=payload.get("title", "repMind routine"),
+        notes=payload.get("notes"),
+        exercises=exercises,
+    )
+    body = build_routine_body(routine)
+    row.resolved_payload = body
+
+    try:
+        result = await client.create_routine(body)
+    except HevyError as exc:
+        row.status = "failed"
+        row.error = str(exc)
+        session.add(row)
+        session.commit()
+        raise HTTPException(502, f"Hevy push failed: {exc}")
+
+    row.status = "pushed"
+    row.hevy_routine_id = result.get("id")
+    row.error = None
+    session.add(row)
+    session.commit()
+
+    return {
+        "id": row.id,
+        "status": row.status,
+        "hevy_routine_id": row.hevy_routine_id,
+        "dry_run": result.get("dry_run", False),
+        "resolved_payload": body,
+    }
