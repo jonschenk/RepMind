@@ -61,7 +61,13 @@ async def stream_chat(
         for _ in range(MAX_TOOL_ITERATIONS):
             async with anthropic.messages.stream(
                 model=settings.chat_model,
-                max_tokens=8000,
+                # Generous, because adaptive thinking on a multi-day split spends a lot of
+                # output budget reasoning BEFORE it emits any routine cards. At 8000 the
+                # think phase alone could exhaust the budget, so the turn ended on
+                # stop_reason="max_tokens" with no tool_use and no text - a silent empty
+                # reply. Streaming makes a high cap safe (no request timeout), and we're
+                # only billed for tokens actually produced.
+                max_tokens=24000,
                 thinking={"type": "adaptive"},
                 system=system,
                 tools=ALL_TOOLS,
@@ -75,8 +81,18 @@ async def stream_chat(
             # Echo the assistant turn (incl. thinking/tool_use blocks) back for context.
             messages.append({"role": "assistant", "content": final.content})
 
-            if final.stop_reason != "tool_use":
+            # Continue the loop whenever the turn produced tool calls, regardless of the
+            # exact stop_reason. Keying off presence of tool_use (not stop_reason ==
+            # "tool_use") means a turn that emitted complete tool calls but happened to
+            # end on "max_tokens" still gets executed instead of silently dropped.
+            has_tool_use = any(b.type == "tool_use" for b in final.content)
+            if not has_tool_use:
                 capped = False
+                if final.stop_reason == "max_tokens":
+                    yield {
+                        "type": "text",
+                        "text": "\n\n_(I ran out of room before finishing that. Say \"continue\" and I'll pick up where I left off.)_",
+                    }
                 break
 
             tool_results = []
