@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, Proposal, WeeklyProposal, WeeklyReviewData } from "../api";
 import { RoutinePreviewCard } from "../components/RoutinePreviewCard";
 import { renderLite } from "../renderLite";
+import { fmtWeight, round1, toUnit, useUnit } from "../units";
 
 function statusClass(s: string): string {
   if (s === "under") return "warn";
@@ -21,6 +22,7 @@ function asProposal(p: WeeklyProposal): Proposal {
 }
 
 export function WeeklyReview({ anthropicReady }: { anthropicReady: boolean }) {
+  const { unit } = useUnit();
   const [data, setData] = useState<WeeklyReviewData | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +111,7 @@ export function WeeklyReview({ anthropicReady }: { anthropicReady: boolean }) {
                   <div className="stalled-row" key={p.exercise}>
                     <span className="name">{p.exercise}</span>
                     <span className="pill good">
-                      {p.est_1rm}kg (+{p.gain})
+                      {fmtWeight(p.est_1rm, unit)} (+{round1(toUnit(p.gain, unit))})
                     </span>
                   </div>
                 ))}

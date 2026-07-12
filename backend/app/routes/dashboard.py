@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 from app.analysis import trends
-from app.analysis.summary import generate_summary
+from app.analysis.summary import get_cached_summary
 from app.config import get_settings
 from app.db import get_session
 
@@ -36,4 +36,5 @@ def exercise_trend(
 
 @router.get("/summary")
 async def summary(session: Session = Depends(get_session)):
-    return await generate_summary(session)
+    # Cached; never regenerates on a page load (see get_cached_summary).
+    return await get_cached_summary(session)

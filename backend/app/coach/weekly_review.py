@@ -21,6 +21,7 @@ from app.config import get_settings
 from app.hevy import HevyClient
 from app.hevy.schemas import strip_dashes
 from app.llm import get_async_anthropic
+from app.state import get_preferences
 from app.models import RoutineProposal, WeeklyReview, Workout
 
 # One structured response: narrative + a few complete, approvable routine changes.
@@ -110,10 +111,14 @@ def _fallback(signals: dict) -> dict:
     return {"narrative": "\n".join(lines), "proposed_changes": []}
 
 
-async def _generate_llm(settings, signals: dict, routines: list[dict]) -> dict:
+async def _generate_llm(settings, signals: dict, routines: list[dict], unit: str) -> dict:
     client = get_async_anthropic()
+    unit_note = (
+        f"Write the `narrative` with weights in {unit} (signals are in kg; 1 kg = 2.2046 lb). "
+        "The routine `weight_kg` fields must stay in KILOGRAMS (they are sent to Hevy)."
+    )
     user_msg = (
-        f"{_INSTRUCTIONS}\n\nSIGNALS:\n{json.dumps(signals, indent=2, default=str)}"
+        f"{_INSTRUCTIONS}\n\n{unit_note}\n\nSIGNALS:\n{json.dumps(signals, indent=2, default=str)}"
         f"\n\nCURRENT ROUTINES:\n{json.dumps(routines, indent=2, default=str)}"
     )
     resp = await client.messages.create(
@@ -203,7 +208,7 @@ async def generate_weekly_review(session: Session, client: HevyClient) -> dict:
     routines = _current_routines(await client.get_routines())
 
     if settings.anthropic_configured:
-        review = await _generate_llm(settings, signals, routines)
+        review = await _generate_llm(settings, signals, routines, get_preferences(session)["weight_unit"])
     else:
         review = _fallback(signals)
 

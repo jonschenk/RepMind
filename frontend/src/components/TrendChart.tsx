@@ -9,6 +9,7 @@ import {
   YAxis,
 } from "recharts";
 import { api, TrackedExercise, TrendPoint } from "../api";
+import { round1, toUnit, useUnit } from "../units";
 
 export function TrendChart({ exercises }: { exercises: TrackedExercise[] }) {
   const [selected, setSelected] = useState<string>("");
@@ -24,9 +25,10 @@ export function TrendChart({ exercises }: { exercises: TrackedExercise[] }) {
     api.trend(selected, formula).then((r) => setSeries(r.series)).catch(() => setSeries([]));
   }, [selected, formula]);
 
+  const { unit } = useUnit();
   const data = series.map((p) => ({
     date: p.date ? p.date.slice(0, 10) : "",
-    est_1rm: p.est_1rm,
+    est_1rm: round1(toUnit(p.est_1rm, unit)),
   }));
 
   return (
@@ -56,7 +58,7 @@ export function TrendChart({ exercises }: { exercises: TrackedExercise[] }) {
             <Tooltip
               contentStyle={{ background: "#1e222b", border: "1px solid #2a2f3a", borderRadius: 8 }}
               labelStyle={{ color: "#9aa3b2" }}
-              formatter={(v: number) => [`${v} kg`, "est. 1RM"]}
+              formatter={(v: number) => [`${v} ${unit}`, "est. 1RM"]}
             />
             <Line type="monotone" dataKey="est_1rm" stroke="#ff6b3d" strokeWidth={2} dot={{ r: 2 }} />
           </LineChart>

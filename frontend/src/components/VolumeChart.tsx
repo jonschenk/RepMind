@@ -10,26 +10,28 @@ import {
   YAxis,
 } from "recharts";
 import { VolumeRow } from "../api";
+import { round1, toUnit, useUnit } from "../units";
 
 const COLORS = ["#ff6b3d", "#4c8dff", "#3ecf8e", "#f2c14e", "#c07bff", "#5fd4d0", "#ef5f5f", "#8b9bb4"];
 
 // Pivot [{week,muscle,volume}] into stacked-bar rows: {week, <muscle>: volume, ...}.
 export function VolumeChart({ rows }: { rows: VolumeRow[] }) {
+  const { unit } = useUnit();
   const { data, muscles } = useMemo(() => {
     const byWeek: Record<string, any> = {};
     const muscleSet = new Set<string>();
     for (const r of rows) {
       muscleSet.add(r.muscle);
       byWeek[r.week] = byWeek[r.week] || { week: r.week };
-      byWeek[r.week][r.muscle] = r.volume_kg;
+      byWeek[r.week][r.muscle] = round1(toUnit(r.volume_kg, unit));
     }
     const weeks = Object.keys(byWeek).sort();
     return { data: weeks.map((w) => byWeek[w]), muscles: Array.from(muscleSet).sort() };
-  }, [rows]);
+  }, [rows, unit]);
 
   return (
     <div className="panel">
-      <h2>Weekly volume by muscle (kg)</h2>
+      <h2>Weekly volume by muscle ({unit})</h2>
       {data.length === 0 ? (
         <div className="muted">No data yet — run a sync.</div>
       ) : (

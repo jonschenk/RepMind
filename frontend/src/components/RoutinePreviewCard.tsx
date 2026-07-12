@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, Proposal, ProposedSet } from "../api";
+import { fromUnit, round1, toUnit, useUnit } from "../units";
 
 // Never allow em/en dashes into notes (hard user preference). Strip on input so the
 // field never even displays one; the backend also strips at push time as a backstop.
@@ -33,6 +34,7 @@ export function RoutinePreviewCard({
   badge?: string;
   rationale?: string;
 }) {
+  const { unit } = useUnit();
   const [status, setStatus] = useState<string>(proposal.status ?? "pending");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -159,7 +161,7 @@ export function RoutinePreviewCard({
               <tr>
                 <th>Set</th>
                 <th>Type</th>
-                <th>Weight (kg)</th>
+                <th>Weight ({unit})</th>
                 <th>Reps</th>
                 {editable && <th></th>}
               </tr>
@@ -190,12 +192,17 @@ export function RoutinePreviewCard({
                         className="set-input"
                         type="number"
                         step="0.5"
-                        value={s.weight_kg ?? ""}
-                        placeholder="—"
-                        onChange={(e) => updateSet(i, j, { weight_kg: numOrUndef(e.target.value) })}
+                        value={s.weight_kg != null ? round1(toUnit(s.weight_kg, unit)) : ""}
+                        placeholder="-"
+                        onChange={(e) => {
+                          const v = numOrUndef(e.target.value);
+                          updateSet(i, j, { weight_kg: v == null ? undefined : fromUnit(v, unit) });
+                        }}
                       />
+                    ) : s.weight_kg != null ? (
+                      round1(toUnit(s.weight_kg, unit))
                     ) : (
-                      s.weight_kg ?? "—"
+                      "-"
                     )}
                   </td>
                   <td>
@@ -205,11 +212,11 @@ export function RoutinePreviewCard({
                         type="number"
                         step="1"
                         value={s.reps ?? ""}
-                        placeholder="—"
+                        placeholder="-"
                         onChange={(e) => updateSet(i, j, { reps: intOrUndef(e.target.value) })}
                       />
                     ) : (
-                      s.reps ?? "—"
+                      s.reps ?? "-"
                     )}
                   </td>
                   {editable && (

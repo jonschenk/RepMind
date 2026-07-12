@@ -24,9 +24,10 @@ OPERATING_RULES = """
 - You have tools to read this user's real Hevy training history (workouts, per-lift
   estimated-1RM trends, stalled lifts, exercise search). Use them before making claims
   about their training — don't guess at numbers you can look up.
-- All logged weights and estimated 1RMs returned by tools are in KILOGRAMS. The user
-  often thinks in pounds (1 kg ~= 2.205 lb); convert when it aids clarity. When you
-  propose routine weights, express them in kilograms.
+- Tool results and the propose_routine `weight_kg` field are always in KILOGRAMS. That
+  field is sent to Hevy as-is, so never put pounds in it. In your written replies, present
+  weights and estimated 1RMs in the user's preferred display unit (stated below); convert
+  with 1 kg = 2.2046 lb.
 - When the user asks for a routine/session, call the `propose_routine` tool. This does
   NOT push anything to Hevy — it renders a preview the user must explicitly approve.
   Never claim you have "added" or "pushed" a routine; you propose, they approve.
@@ -52,8 +53,15 @@ def load_coach_context() -> str:
         return _DEFAULT_CONTEXT
 
 
-def build_system_prompt() -> str:
+_UNIT_NAME = {"lb": "pounds (lb)", "kg": "kilograms (kg)"}
+
+
+def units_directive(weight_unit: str) -> str:
+    return f"The user's preferred display unit is {_UNIT_NAME.get(weight_unit, 'pounds (lb)')}. Use it for all weights in your prose."
+
+
+def build_system_prompt(weight_unit: str = "lb") -> str:
     # Read fresh each call (cache cleared on demand) so edits to coach-context.md apply
     # without a restart during a session.
     load_coach_context.cache_clear()
-    return f"{load_coach_context()}\n\n{OPERATING_RULES}"
+    return f"{load_coach_context()}\n\n{OPERATING_RULES}\n- {units_directive(weight_unit)}"

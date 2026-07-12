@@ -1,8 +1,27 @@
 import { useEffect, useState } from "react";
 import { api, Health } from "./api";
+import { useUnit } from "./units";
 import { Dashboard } from "./views/Dashboard";
 import { Chat } from "./views/Chat";
 import { WeeklyReview } from "./views/WeeklyReview";
+
+// Weight display unit toggle (settings). Persisted server-side; default LB.
+function UnitToggle() {
+  const { unit, setUnit } = useUnit();
+  return (
+    <div className="unit-toggle" title="Weight display unit">
+      {(["lb", "kg"] as const).map((u) => (
+        <button
+          key={u}
+          className={`unit-opt ${unit === u ? "active" : ""}`}
+          onClick={() => setUnit(u)}
+        >
+          {u.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function App() {
   const [tab, setTab] = useState<"dashboard" | "weekly" | "chat">("dashboard");
@@ -54,6 +73,7 @@ export default function App() {
           </button>
         </div>
         <div className="spacer" />
+        <UnitToggle />
         {health?.dry_run && <span className="pill dry">DRY RUN</span>}
         {health && <span className="pill">{health.workout_count} workouts</span>}
         {syncMsg && <span className="muted" style={{ fontSize: 12 }}>{syncMsg}</span>}

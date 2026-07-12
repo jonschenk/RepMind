@@ -85,6 +85,15 @@ class RoutineProposal(SQLModel, table=True):
     error: Optional[str] = None
 
 
+class AppState(SQLModel, table=True):
+    """Tiny key/value memory store: cached generated content (e.g. the dashboard summary,
+    so it isn't regenerated on every page load) and user preferences (e.g. weight unit)."""
+
+    key: str = Field(primary_key=True)
+    value: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class WeeklyReview(SQLModel, table=True):
     """A generated weekly review. `payload` holds the narrative + computed signals +
     the ids of the RoutineProposal rows it produced."""

@@ -15,6 +15,7 @@ from app.config import get_settings
 from app.hevy import HevyClient
 from app.llm import get_async_anthropic
 from app.models import RoutineProposal
+from app.state import get_preferences
 
 MAX_TOOL_ITERATIONS = 6
 
@@ -47,7 +48,7 @@ async def stream_chat(
         return
 
     anthropic = get_async_anthropic()
-    system = build_system_prompt()
+    system = build_system_prompt(get_preferences(session)["weight_unit"])
     # Prior turns are plain text; the tool loop within this request adds block content.
     messages: list[dict[str, Any]] = [
         {"role": m["role"], "content": m["content"]} for m in history

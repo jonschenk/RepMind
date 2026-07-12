@@ -20,6 +20,9 @@ from app.chat.prompt import NO_DASH_RULE, load_coach_context
 from app.config import get_settings
 from app.hevy.schemas import strip_dashes
 from app.llm import get_async_anthropic
+from app.state import get_preferences, get_state, set_state
+
+SUMMARY_KEY = "dashboard_summary"
 
 _LATERAL_REAR_KEYWORDS = ("lateral", "lat raise", "face pull", "rear delt", "reverse fly", "reverse pec")
 
@@ -94,13 +97,15 @@ async def generate_summary(session: Session) -> dict:
 
     import json
 
+    unit = get_preferences(session)["weight_unit"]
     client = get_async_anthropic()
     user_msg = (
         "Here are deterministic signals computed from the user's last few weeks of Hevy "
         "data (weights in kg). Write a short, direct 'what to improve this week' card "
         "(~120-160 words, markdown, coach voice). Prioritize the user's stated weak point "
         "(side/rear delts) and address any stalled lifts specifically. Don't restate every "
-        "number — give judgment.\n\n"
+        f"number — give judgment. Present all weights in {unit} (signals are kg; 1 kg = "
+        "2.2046 lb).\n\n"
         f"SIGNALS:\n{json.dumps(signals, indent=2, default=str)}"
     )
     resp = await client.messages.create(
@@ -114,3 +119,20 @@ async def generate_summary(session: Session) -> dict:
     text = next((b.text for b in resp.content if b.type == "text"), "")
     # Backstop the no-em-dash rule in case the model slips.
     return {"generated_at": generated_at, "summary": strip_dashes(text.strip()), "signals": signals}
+
+
+async def get_cached_summary(session: Session) -> dict:
+    """Return the cached summary. Only generates (one Claude call) if nothing is cached
+    yet; otherwise it's served from the DB. Regeneration is scheduled weekly, never on a
+    page load, so browsing the dashboard costs no tokens."""
+    cached = get_state(session, SUMMARY_KEY)
+    if cached:
+        return cached
+    return await refresh_summary(session)
+
+
+async def refresh_summary(session: Session) -> dict:
+    """Generate a fresh summary and cache it (used on first load and the weekly job)."""
+    data = await generate_summary(session)
+    set_state(session, SUMMARY_KEY, data)
+    return data

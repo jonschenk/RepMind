@@ -1,6 +1,8 @@
 import { StalledLift } from "../api";
+import { fmtWeight, useUnit } from "../units";
 
 export function StalledLiftCard({ lifts }: { lifts: StalledLift[] }) {
+  const { unit } = useUnit();
   return (
     <div className="panel">
       <h2>Stalled lifts</h2>
@@ -10,7 +12,7 @@ export function StalledLiftCard({ lifts }: { lifts: StalledLift[] }) {
           <div>
             <div className="name">{l.exercise}</div>
             <div className="meta">
-              best est. 1RM {l.best_est_1rm} kg · now {l.current_est_1rm} kg
+              best est. 1RM {fmtWeight(l.best_est_1rm, unit)} · now {fmtWeight(l.current_est_1rm, unit)}
             </div>
           </div>
           <span className="pill warn">{l.sessions_since_pr} sessions since PR</span>

@@ -9,12 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlmodel import Session
 
+from app.analysis.summary import SUMMARY_KEY, refresh_summary
 from app.coach.weekly_review import generate_weekly_review
 from app.config import get_settings
 from app.db import engine, init_db
 from app.hevy import HevyClient
 from app.models import SyncState
-from app.routes import chat, dashboard, routines, sync, weekly
+from app.routes import chat, dashboard, routines, settings as settings_routes, sync, weekly
+from app.state import get_state
 from app.sync.service import run_sync
 
 scheduler = AsyncIOScheduler()
@@ -37,6 +39,20 @@ async def _weekly_review_job() -> None:
         logger.warning("Scheduled weekly review failed: %s", exc)
 
 
+async def _summary_refresh_job() -> None:
+    """Regenerate the cached 'what to improve this week' summary. Scheduled for Saturday
+    morning; never triggered by a page load."""
+    settings = get_settings()
+    if not settings.anthropic_configured:
+        return
+    try:
+        with Session(engine) as session:
+            await refresh_summary(session)
+            logger.info("Scheduled dashboard summary refreshed.")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Scheduled summary refresh failed: %s", exc)
+
+
 async def _startup_sync() -> None:
     """Best-effort sync on boot (full on first run, delta after). Never blocks startup."""
     settings = get_settings()
@@ -48,6 +64,11 @@ async def _startup_sync() -> None:
             client = HevyClient(settings)
             result = await run_sync(session, client)
             logger.info("Startup sync: %s", result)
+            # One-time: generate the summary if none is cached yet, so the first dashboard
+            # load is instant. Cached in the DB thereafter (survives restarts/deploys).
+            if settings.anthropic_configured and get_state(session, SUMMARY_KEY) is None:
+                await refresh_summary(session)
+                logger.info("Initial dashboard summary generated and cached.")
     except Exception as exc:  # noqa: BLE001
         logger.warning("Startup sync failed (continuing): %s", exc)
 
@@ -60,6 +81,11 @@ async def lifespan(app: FastAPI):
     # Weekly review pre-generation (Monday 06:00 local). In-app is the delivery surface.
     scheduler.add_job(
         _weekly_review_job, "cron", day_of_week="mon", hour=6, minute=0, id="weekly_review"
+    )
+    # "What to improve this week" refreshes Saturday morning (end of the training week),
+    # never on a page load.
+    scheduler.add_job(
+        _summary_refresh_job, "cron", day_of_week="sat", hour=7, minute=0, id="summary_refresh"
     )
     scheduler.start()
     yield
@@ -82,6 +108,7 @@ app.include_router(dashboard.router)
 app.include_router(chat.router)
 app.include_router(routines.router)
 app.include_router(weekly.router)
+app.include_router(settings_routes.router)
 
 
 @app.get("/api/health")

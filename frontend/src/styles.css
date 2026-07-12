@@ -50,6 +50,10 @@ header.top .logo { color: var(--accent); }
 .pill.warn { color: var(--warn); border-color: var(--warn); }
 .pill.dry { color: var(--accent); border-color: var(--accent); }
 
+.unit-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.unit-opt { background: transparent; border: none; color: var(--muted); padding: 5px 10px; cursor: pointer; font-size: 12px; font-weight: 600; }
+.unit-opt.active { background: var(--panel-2); color: var(--text); }
+
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
 .panel h2 { font-size: 15px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
