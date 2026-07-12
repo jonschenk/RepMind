@@ -71,9 +71,9 @@ def build_routine_body(routine: ResolvedRoutine) -> dict:
             ex_body["notes"] = notes
         exercises.append(ex_body)
 
-    inner: dict = {"title": routine.title, "exercises": exercises}
-    if routine.folder_id is not None:
-        inner["folder_id"] = routine.folder_id
+    # folder_id must be PRESENT (null when unset) — Hevy 400s on an absent folder_id,
+    # reading it as `undefined`.
+    inner: dict = {"title": routine.title, "folder_id": routine.folder_id, "exercises": exercises}
     notes = sanitize_notes(routine.notes)
     if notes:
         inner["notes"] = notes
