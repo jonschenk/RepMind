@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, DashboardData, Health, RepMix } from "../api";
 import { BodyCard } from "../components/BodyCard";
+import { Collapsible } from "../components/Collapsible";
 import { ProgressionCard } from "../components/ProgressionCard";
 import { SummaryCard } from "../components/SummaryCard";
 import { TrendChart } from "../components/TrendChart";
@@ -52,7 +53,6 @@ export function Dashboard({ health }: { health: Health | null }) {
         </div>
       )}
       <SummaryCard enabled={!!health?.anthropic_configured} />
-      <ProgressionCard items={data.progression} />
       <div className="grid2">
         <TrainingMixPanel mix={data.training_mix} />
         <div className="panel">
@@ -66,8 +66,15 @@ export function Dashboard({ health }: { health: Health | null }) {
         </div>
       </div>
       <TrendChart exercises={data.exercises} />
-      <BodyCard />
-      <VolumeChart rows={data.weekly_volume} />
+      <Collapsible title="Progression (load · reps · volume)">
+        <ProgressionCard items={data.progression} bare />
+      </Collapsible>
+      <Collapsible title="Bodyweight">
+        <BodyCard bare />
+      </Collapsible>
+      <Collapsible title="Weekly volume by muscle">
+        <VolumeChart rows={data.weekly_volume} bare />
+      </Collapsible>
     </div>
   );
 }

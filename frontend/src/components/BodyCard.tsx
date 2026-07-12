@@ -12,7 +12,7 @@ import {
 import { api, BodyStats } from "../api";
 import { fmtWeight, round1, toUnit, useUnit } from "../units";
 
-export function BodyCard() {
+export function BodyCard({ bare }: { bare?: boolean }) {
   const { unit } = useUnit();
   const [bs, setBs] = useState<BodyStats | null>(null);
 
@@ -22,13 +22,17 @@ export function BodyCard() {
 
   if (!bs) return null;
   if (!bs.has_data) {
+    const msg = (
+      <div className="muted">
+        No bodyweight logged in Hevy yet. Weigh in on your scale (it syncs through Apple
+        Health into Hevy) and it'll show up here.
+      </div>
+    );
+    if (bare) return msg;
     return (
       <div className="panel">
         <h2>Bodyweight</h2>
-        <div className="muted">
-          No bodyweight logged in Hevy yet. Weigh in on your scale (it syncs through Apple
-          Health into Hevy) and it'll show up here.
-        </div>
+        {msg}
       </div>
     );
   }
@@ -38,10 +42,10 @@ export function BodyCard() {
   const [tLo, tHi] = [toDisp(bs.target_lb[0]), toDisp(bs.target_lb[1])];
   const data = (bs.trend || []).map((p) => ({ date: p.date, value: round1(toUnit(p.weight_kg, unit)) }));
 
-  return (
-    <div className="panel">
+  const inner = (
+    <>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0 }}>Bodyweight</h2>
+        {!bare && <h2 style={{ margin: 0 }}>Bodyweight</h2>}
         <div className="spacer" />
         <span className="muted" style={{ fontSize: 12 }}>as of {latest.date}</span>
         {bs.stale && <span className="pill warn">logged {bs.days_since}d ago</span>}
@@ -86,6 +90,8 @@ export function BodyCard() {
           ))}
         </>
       )}
-    </div>
+    </>
   );
+  if (bare) return inner;
+  return <div className="panel">{inner}</div>;
 }

@@ -23,11 +23,10 @@ function RepMixBar({ mix }: { mix: ProgressionItem["rep_mix"] }) {
   );
 }
 
-export function ProgressionCard({ items }: { items: ProgressionItem[] }) {
+export function ProgressionCard({ items, bare }: { items: ProgressionItem[]; bare?: boolean }) {
   const shown = items.filter((i) => i.verdict !== "new").slice(0, 12);
-  return (
-    <div className="panel">
-      <h2>Progression (load · reps · volume)</h2>
+  const body = (
+    <>
       {shown.length === 0 && <div className="muted">Not enough history yet.</div>}
       {shown.map((p) => (
         <div className="stalled-row" key={p.exercise}>
@@ -39,6 +38,13 @@ export function ProgressionCard({ items }: { items: ProgressionItem[] }) {
           <span className={`pill ${VERDICT_PILL[p.verdict]}`}>{p.verdict}</span>
         </div>
       ))}
+    </>
+  );
+  if (bare) return body;
+  return (
+    <div className="panel">
+      <h2>Progression (load · reps · volume)</h2>
+      {body}
     </div>
   );
 }

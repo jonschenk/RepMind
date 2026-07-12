@@ -65,6 +65,13 @@ header.top .logo { color: var(--accent); }
 
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
 .panel h2 { font-size: 15px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+.collapse-head { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: none; padding: 0; cursor: pointer; text-align: left; color: inherit; }
+.collapse-head h2 { margin: 0; }
+.collapse-head .chevron { color: var(--muted); font-size: 12px; transition: transform 0.15s ease; }
+.collapse-head .chevron.open { transform: rotate(90deg); }
+.collapse-head:hover h2 { color: var(--text); }
+.collapse-body { margin-top: 14px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 820px) { .grid2 { grid-template-columns: 1fr; } }
 

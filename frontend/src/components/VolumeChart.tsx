@@ -15,7 +15,7 @@ import { round1, toUnit, useUnit } from "../units";
 const COLORS = ["#ff6b3d", "#4c8dff", "#3ecf8e", "#f2c14e", "#c07bff", "#5fd4d0", "#ef5f5f", "#8b9bb4"];
 
 // Pivot [{week,muscle,volume}] into stacked-bar rows: {week, <muscle>: volume, ...}.
-export function VolumeChart({ rows }: { rows: VolumeRow[] }) {
+export function VolumeChart({ rows, bare }: { rows: VolumeRow[]; bare?: boolean }) {
   const { unit } = useUnit();
   const { data, muscles } = useMemo(() => {
     const byWeek: Record<string, any> = {};
@@ -29,9 +29,8 @@ export function VolumeChart({ rows }: { rows: VolumeRow[] }) {
     return { data: weeks.map((w) => byWeek[w]), muscles: Array.from(muscleSet).sort() };
   }, [rows, unit]);
 
-  return (
-    <div className="panel">
-      <h2>Weekly volume by muscle ({unit})</h2>
+  const body = (
+    <>
       {data.length === 0 ? (
         <div className="muted">No data yet — run a sync.</div>
       ) : (
@@ -51,6 +50,13 @@ export function VolumeChart({ rows }: { rows: VolumeRow[] }) {
           </BarChart>
         </ResponsiveContainer>
       )}
+    </>
+  );
+  if (bare) return body;
+  return (
+    <div className="panel">
+      <h2>Weekly volume by muscle ({unit})</h2>
+      {body}
     </div>
   );
 }
