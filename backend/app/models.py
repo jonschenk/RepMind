@@ -89,6 +89,9 @@ class RoutineProposal(SQLModel, table=True):
     kind: str = Field(default="create")  # create | update
     target_routine_id: Optional[str] = None  # for kind=update
     source: str = Field(default="chat")  # chat | weekly
+    # The assistant ChatMessage this proposal was created in, so its approval card can be
+    # replayed from chat history after a reload (streamed proposal events are ephemeral).
+    chat_message_id: Optional[int] = Field(default=None, index=True)
     payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     diff: Optional[dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
     resolved_payload: Optional[dict[str, Any]] = Field(default=None, sa_column=Column(JSON))

@@ -166,7 +166,10 @@ export const api = {
     }).then((r) => j<any>(r)),
   weeklyReview: () => fetch("/api/weekly").then((r) => j<WeeklyReviewData>(r)),
   generateWeekly: () => fetch("/api/weekly/generate", { method: "POST" }).then((r) => j<any>(r)),
-  chatHistory: () => fetch("/api/chat/history").then((r) => j<{ role: string; content: string }[]>(r)),
+  chatHistory: () =>
+    fetch("/api/chat/history").then((r) =>
+      j<{ role: string; content: string; proposals: Proposal[] }[]>(r),
+    ),
 };
 
 // Stream chat via SSE, invoking onEvent for each parsed event. History lives server-side

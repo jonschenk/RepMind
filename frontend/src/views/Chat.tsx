@@ -39,7 +39,14 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
     api
       .chatHistory()
       .then((rows) =>
-        setMessages(rows.map((r) => ({ role: r.role as "user" | "assistant", content: r.content, tools: [], proposals: [] }))),
+        setMessages(
+          rows.map((r) => ({
+            role: r.role as "user" | "assistant",
+            content: r.content,
+            tools: [],
+            proposals: r.proposals ?? [],
+          })),
+        ),
       )
       .catch(() => {});
   }, []);

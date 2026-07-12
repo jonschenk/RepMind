@@ -24,6 +24,7 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "target_routine_id": "TEXT",
         "source": "TEXT DEFAULT 'chat'",
         "diff": "JSON",
+        "chat_message_id": "INTEGER",
     },
 }
 
