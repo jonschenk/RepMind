@@ -29,10 +29,12 @@ export function RoutinePreviewCard({
   proposal,
   badge,
   rationale,
+  onDismiss,
 }: {
   proposal: Proposal;
   badge?: string;
   rationale?: string;
+  onDismiss?: () => void;
 }) {
   const { unit } = useUnit();
   const [status, setStatus] = useState<string>(proposal.status ?? "pending");
@@ -94,6 +96,19 @@ export function RoutinePreviewCard({
     try {
       await api.updateProposal(proposal.id, buildPayload());
       setSaved(true);
+    } catch (e: any) {
+      setError(String(e.message ?? e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deny() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.dismissProposal(proposal.id);
+      onDismiss?.();
     } catch (e: any) {
       setError(String(e.message ?? e));
     } finally {
@@ -275,6 +290,11 @@ export function RoutinePreviewCard({
             <button className="btn ghost" onClick={save} disabled={busy}>
               Save changes
             </button>
+            {onDismiss && (
+              <button className="btn deny" onClick={deny} disabled={busy} title="Clear this suggestion">
+                Deny
+              </button>
+            )}
             {saved && <span className="result-ok">✓ saved</span>}
             <span className="muted" style={{ fontSize: 12 }}>
               Nothing is sent until you approve.

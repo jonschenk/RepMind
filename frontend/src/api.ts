@@ -159,6 +159,8 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ payload }),
     }).then((r) => j<any>(r)),
+  dismissProposal: (id: number) =>
+    fetch(`/api/routines/proposals/${id}/dismiss`, { method: "POST" }).then((r) => j<any>(r)),
   approveProposal: (id: number, payload?: any) =>
     fetch(`/api/routines/proposals/${id}/approve`, {
       method: "POST",

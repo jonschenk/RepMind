@@ -27,6 +27,7 @@ export function WeeklyReview({ anthropicReady }: { anthropicReady: boolean }) {
   const [data, setData] = useState<WeeklyReviewData | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState<Set<number>>(new Set());
 
   async function load() {
     try {
@@ -150,20 +151,23 @@ export function WeeklyReview({ anthropicReady }: { anthropicReady: boolean }) {
             </div>
           )}
 
-          {data.proposals && data.proposals.length > 0 && (
+          {data.proposals && data.proposals.filter((p) => !dismissed.has(p.id)).length > 0 && (
             <div className="panel">
               <h2>Proposed routine updates</h2>
               <div className="muted" style={{ marginBottom: 8 }}>
-                Review each, edit if you like, and approve to push. Nothing changes in Hevy until you approve.
+                Review each, edit if you like, and approve to push. Nothing changes in Hevy until you approve. Deny to clear one you don't want.
               </div>
-              {data.proposals.map((p) => (
-                <RoutinePreviewCard
-                  key={p.id}
-                  proposal={asProposal(p)}
-                  badge={(p.kind === "update" ? "UPDATE · " : "NEW · ") + (p.diff?.changes_summary ?? "")}
-                  rationale={p.diff?.rationale}
-                />
-              ))}
+              {data.proposals
+                .filter((p) => !dismissed.has(p.id))
+                .map((p) => (
+                  <RoutinePreviewCard
+                    key={p.id}
+                    proposal={asProposal(p)}
+                    badge={(p.kind === "update" ? "UPDATE · " : "NEW · ") + (p.diff?.changes_summary ?? "")}
+                    rationale={p.diff?.rationale}
+                    onDismiss={() => setDismissed((prev) => new Set(prev).add(p.id))}
+                  />
+                ))}
             </div>
           )}
         </>

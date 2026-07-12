@@ -15,7 +15,7 @@ def _assemble(review: WeeklyReview, session: Session) -> dict:
     proposals = []
     for pid in payload.get("proposal_ids", []):
         row = session.get(RoutineProposal, pid)
-        if not row:
+        if not row or row.status == "dismissed":
             continue
         proposals.append(
             {

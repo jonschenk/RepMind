@@ -45,6 +45,7 @@ header.top .logo { color: var(--accent); }
 .btn:disabled { opacity: 0.5; cursor: default; }
 .btn.ghost { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
 .btn.approve { background: var(--good); color: #04170f; }
+.btn.deny { background: var(--panel-2); color: var(--danger); border: 1px solid var(--danger); }
 
 .pill { font-size: 12px; color: var(--muted); padding: 3px 8px; border: 1px solid var(--border); border-radius: 999px; }
 .pill.warn { color: var(--warn); border-color: var(--warn); }

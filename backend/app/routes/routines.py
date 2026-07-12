@@ -66,6 +66,21 @@ def update_proposal(
     return row
 
 
+@router.post("/proposals/{proposal_id}/dismiss")
+def dismiss_proposal(proposal_id: int, session: Session = Depends(get_session)):
+    """Deny a proposal so it stops showing (e.g. clear out weekly-review suggestions you
+    don't want). Nothing is pushed; an already-pushed routine can't be dismissed."""
+    row = session.get(RoutineProposal, proposal_id)
+    if not row:
+        raise HTTPException(404, "Proposal not found")
+    if row.status == "pushed":
+        raise HTTPException(409, "Already pushed to Hevy; cannot dismiss.")
+    row.status = "dismissed"
+    session.add(row)
+    session.commit()
+    return {"id": row.id, "status": row.status}
+
+
 @router.post("/proposals/{proposal_id}/approve")
 async def approve_proposal(
     proposal_id: int,
