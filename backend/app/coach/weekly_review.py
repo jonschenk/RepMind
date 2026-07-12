@@ -14,7 +14,7 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.analysis import progression, prs, volume
+from app.analysis import body, progression, prs, volume
 from app.analysis.notes import extract_note_themes
 from app.chat.prompt import NO_DASH_RULE, load_coach_context
 from app.config import get_settings
@@ -105,6 +105,10 @@ Write:
    lateral/rear-delt volume only if under target; do NOT add pressing volume to fix delts.
    `changes_summary` is a one-line diff.
 
+If `bodyweight.stale` is true, that reading is their last known weight (as of `as_of`), not
+current, so say so rather than treating it as today's weight. Use relative strength (est-1RM
+per bodyweight) when it adds insight.
+
 Respect the user's training style and never use em dashes.
 """.strip()
 
@@ -146,24 +150,21 @@ async def _generate_llm(settings, signals: dict, routines: list[dict], unit: str
         return {"narrative": "", "proposed_changes": []}
 
 
-async def _bodyweight_signal(client: HevyClient) -> Optional[dict]:
-    """Latest bodyweight + recent trend (kg and lb), for context vs the user's target."""
-    try:
-        measurements = await client.get_body_measurements(max_pages=6)
-    except Exception:
+def _bodyweight_signal(session: Session) -> Optional[dict]:
+    """Latest bodyweight/fat% + relative strength from the synced measurements, with a
+    stale flag so the coach knows when the reading is old."""
+    bs = body.body_stats(session)
+    if not bs.get("has_data"):
         return None
-    points = sorted(
-        ({"date": m["date"], "weight_kg": m["weight_kg"]} for m in measurements if m.get("weight_kg")),
-        key=lambda p: p["date"],
-    )
-    if not points:
-        return None
-    latest = points[-1]
+    latest = bs["latest"]
     return {
         "latest_kg": latest["weight_kg"],
         "latest_lb": round(latest["weight_kg"] * 2.2046, 1),
-        "latest_date": latest["date"],
-        "trend": points[-10:],
+        "fat_percent": latest["fat_percent"],
+        "as_of": latest["date"],
+        "days_since": bs["days_since"],
+        "stale": bs["stale"],
+        "relative_strength": bs["relative_strength"],
     }
 
 
@@ -212,7 +213,7 @@ async def generate_weekly_review(session: Session, client: HevyClient) -> dict:
         "progression": progression.progression_overview(session, settings.stall_lookback_sessions),
         "est_1rm_prs": prs.prs_in_period(session, start, end),
         "notes": notes.get("themes", []),
-        "bodyweight": await _bodyweight_signal(client),
+        "bodyweight": _bodyweight_signal(session),
     }
 
     routines = _current_routines(await client.get_routines())

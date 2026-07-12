@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, DashboardData, Health, RepMix } from "../api";
+import { BodyCard } from "../components/BodyCard";
 import { ProgressionCard } from "../components/ProgressionCard";
 import { SummaryCard } from "../components/SummaryCard";
 import { TrendChart } from "../components/TrendChart";
@@ -65,6 +66,7 @@ export function Dashboard({ health }: { health: Health | null }) {
         </div>
       </div>
       <TrendChart exercises={data.exercises} />
+      <BodyCard />
       <VolumeChart rows={data.weekly_volume} />
     </div>
   );

@@ -44,6 +44,16 @@ export interface VolumeRow {
   volume_kg: number;
 }
 
+export interface BodyStats {
+  has_data: boolean;
+  latest?: { date: string; weight_kg: number; fat_percent: number | null };
+  days_since?: number | null;
+  stale?: boolean;
+  target_lb: number[];
+  trend?: { date: string; weight_kg: number; fat_percent: number | null }[];
+  relative_strength?: { exercise: string; est_1rm_kg: number; ratio: number }[];
+}
+
 export interface DashboardData {
   exercises: TrackedExercise[];
   progression: ProgressionItem[];
@@ -141,6 +151,7 @@ export const api = {
       j<TrendResponse>(r),
     ),
   summary: () => fetch("/api/dashboard/summary").then((r) => j<any>(r)),
+  body: () => fetch("/api/dashboard/body").then((r) => j<BodyStats>(r)),
   updateProposal: (id: number, payload: any) =>
     fetch(`/api/routines/proposals/${id}`, {
       method: "PATCH",

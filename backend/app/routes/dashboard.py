@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
-from app.analysis import progression, trends
+from app.analysis import body, progression, trends
 from app.analysis.summary import get_cached_summary
 from app.config import get_settings
 from app.db import get_session
@@ -50,3 +50,8 @@ def exercise_trend(
 async def summary(session: Session = Depends(get_session)):
     # Cached; never regenerates on a page load (see get_cached_summary).
     return await get_cached_summary(session)
+
+
+@router.get("/body")
+def body_stats(session: Session = Depends(get_session)):
+    return body.body_stats(session)

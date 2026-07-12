@@ -13,7 +13,7 @@ from typing import Optional
 from sqlmodel import Session, delete, select
 
 from app.hevy import HevyClient
-from app.models import ExerciseTemplate, SyncState, Workout, WorkoutSet
+from app.models import BodyMeasurement, ExerciseTemplate, SyncState, Workout, WorkoutSet
 
 logger = logging.getLogger("repmind.sync")
 
@@ -122,12 +122,38 @@ async def sync_templates(session: Session, client: HevyClient) -> int:
     return count
 
 
+async def sync_body_measurements(session: Session, client: HevyClient) -> int:
+    """Upsert bodyweight + fat% from Hevy (fed by Apple Health / smart scale)."""
+    count = 0
+    for m in await client.get_body_measurements(max_pages=10):
+        mid = m.get("id")
+        if mid is None:
+            continue
+        fields = dict(
+            date=m.get("date", ""),
+            weight_kg=m.get("weight_kg"),
+            fat_percent=m.get("fat_percent"),
+            created_at=m.get("created_at"),
+        )
+        existing = session.get(BodyMeasurement, mid)
+        if existing:
+            for k, v in fields.items():
+                setattr(existing, k, v)
+            session.add(existing)
+        else:
+            session.add(BodyMeasurement(id=mid, **fields))
+        count += 1
+    session.commit()
+    return count
+
+
 async def run_sync(session: Session, client: HevyClient) -> dict:
     """Full sync on first run, delta sync afterward. Returns a summary."""
     state = _get_sync_state(session)
 
     # Always refresh templates (needed for name->UUID resolution + muscle analysis).
     templates = await sync_templates(session, client)
+    body = await sync_body_measurements(session, client)
 
     if not state.full_sync_done:
         result = await _full_sync(session, client, state)
@@ -135,6 +161,7 @@ async def run_sync(session: Session, client: HevyClient) -> dict:
         result = await _delta_sync(session, client, state)
 
     result["templates"] = templates
+    result["body_measurements"] = body
     return result
 
 

@@ -53,6 +53,17 @@ class WorkoutSet(SQLModel, table=True):
     rpe: Optional[float] = None
 
 
+class BodyMeasurement(SQLModel, table=True):
+    """Bodyweight + body-fat % from Hevy's body_measurements (fed by Apple Health / a smart
+    scale). Only weight and fat% come through Hevy's API."""
+
+    id: int = Field(primary_key=True)  # Hevy measurement id
+    date: str = Field(index=True)  # YYYY-MM-DD
+    weight_kg: Optional[float] = None
+    fat_percent: Optional[float] = None
+    created_at: Optional[str] = None
+
+
 class SyncState(SQLModel, table=True):
     """Single-row (id=1) record of sync progress."""
 
