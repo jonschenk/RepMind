@@ -53,6 +53,21 @@ async def _summary_refresh_job() -> None:
         logger.warning("Scheduled summary refresh failed: %s", exc)
 
 
+async def _periodic_sync() -> None:
+    """Keep the cache fresh server-side (delta sync) so the scheduled jobs and the first page
+    load see recent workouts even when no client has synced. Best-effort."""
+    settings = get_settings()
+    if not settings.hevy_configured:
+        return
+    try:
+        with Session(engine) as session:
+            client = HevyClient(settings)
+            result = await run_sync(session, client)
+            logger.info("Periodic sync: %s", result)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Periodic sync failed: %s", exc)
+
+
 async def _startup_sync() -> None:
     """Best-effort sync on boot (full on first run, delta after). Never blocks startup."""
     settings = get_settings()
@@ -87,6 +102,8 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(
         _summary_refresh_job, "cron", day_of_week="sat", hour=7, minute=0, id="summary_refresh"
     )
+    # Keep the cache fresh even when nobody has the app open.
+    scheduler.add_job(_periodic_sync, "interval", minutes=30, id="periodic_sync")
     scheduler.start()
     yield
     scheduler.shutdown(wait=False)

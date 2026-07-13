@@ -32,13 +32,14 @@ function TrainingMixPanel({ mix }: { mix: RepMix }) {
   );
 }
 
-export function Dashboard({ health }: { health: Health | null }) {
+export function Dashboard({ health, refreshKey }: { health: Health | null; refreshKey?: number }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Re-fetch when a sync bumps refreshKey so newly-logged workouts show without a reload.
   useEffect(() => {
     api.dashboard().then(setData).catch((e) => setError(String(e.message ?? e)));
-  }, []);
+  }, [refreshKey]);
 
   if (error) return <div className="panel result-err">{error}</div>;
   if (!data) return <div className="muted">Loading dashboard…</div>;
