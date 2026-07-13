@@ -15,6 +15,7 @@ from typing import Optional
 from sqlmodel import Session, select
 
 from app.analysis import body, progression, prs, volume
+from app.analysis.changes import recent_changes
 from app.analysis.notes import extract_note_themes
 from app.chat.prompt import NO_DASH_RULE, load_coach_context
 from app.config import get_settings
@@ -119,6 +120,12 @@ Write:
    only for genuinely bodyweight movements. Never emit converted-looking fractions like 132.3.
    Set `routine.folder` to null for an `update` (it keeps its existing folder). For a `create`
    that belongs with a split, set `folder` to that split's short folder name.
+
+`routine_changes` lists routine edits the user already made this week (via chat or a prior
+review), each with a date, source, and what/why. Honor them: if a logged session differs
+from the current routine and a change is dated around then, that is the user deliberately
+adjusting the plan (e.g. dialing back unrealistic volume or weight), NOT going off-program -
+do not scold it or propose undoing it. Build on those changes rather than reverting them.
 
 If `bodyweight.stale` is true, that reading is their last known weight (as of `as_of`), not
 current, so say so rather than treating it as today's weight. Use relative strength (est-1RM
@@ -232,6 +239,9 @@ async def generate_weekly_review(session: Session, client: HevyClient) -> dict:
         "est_1rm_prs": prs.prs_in_period(session, start, end),
         "notes": notes.get("themes", []),
         "bodyweight": _bodyweight_signal(session),
+        # Routine edits (chat + weekly) so a deliberate mid-week adjustment isn't misread as
+        # the user going off-program.
+        "routine_changes": recent_changes(session, since=start),
     }
 
     weight_unit = get_preferences(session)["weight_unit"]

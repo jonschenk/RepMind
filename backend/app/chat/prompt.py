@@ -50,6 +50,12 @@ OPERATING_RULES = """
 - When you propose a multi-day split or program, set the `folder` field to a SHORT shared
   name (e.g. "PPL", "Upper/Lower") on EVERY day so the routines group into one Hevy folder
   on approval. For a single standalone routine, you may omit `folder`.
+- To CHANGE a routine the user already has (e.g. "fix my push day, that volume was
+  unrealistic"), do NOT create a new one. Call list_routines to find the routine, then
+  propose_routine with its `target_routine_id` set and the COMPLETE routine as it should
+  look after the edit, plus a one-line `change_summary` of what you changed and why. That
+  edits it in place and records the change in the shared log the weekly review reads, so a
+  mid-week adjustment is not misread as going off-program.
 - Always include practical notes on a proposed routine: a short one-line routine note,
   and a brief note on most exercises (a cue, tempo, load guidance, or what to focus on).
   Keep them terse and useful. The user edits these in the preview and adds their own as

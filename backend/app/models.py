@@ -97,6 +97,10 @@ class RoutineProposal(SQLModel, table=True):
     resolved_payload: Optional[dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
     hevy_routine_id: Optional[str] = None
     error: Optional[str] = None
+    # When the change actually landed in Hevy (status -> pushed). Powers the shared change
+    # log both the chat and weekly-review bots read, so a mid-week routine edit isn't
+    # misread as going off-program.
+    pushed_at: Optional[datetime] = Field(default=None, index=True)
 
 
 class ChatMessage(SQLModel, table=True):

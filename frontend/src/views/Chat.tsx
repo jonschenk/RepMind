@@ -151,7 +151,12 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
                 </div>
               )}
               {m.proposals.map((p) => (
-                <RoutinePreviewCard key={p.id} proposal={p} />
+                <RoutinePreviewCard
+                  key={p.id}
+                  proposal={p}
+                  badge={p.kind === "update" ? "UPDATE" : undefined}
+                  rationale={p.change_summary}
+                />
               ))}
             </div>
           );

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -178,6 +179,7 @@ async def approve_proposal(
 
     row.status = "pushed"
     row.hevy_routine_id = result.get("id")
+    row.pushed_at = datetime.utcnow()
     row.error = None
     session.add(row)
     session.commit()

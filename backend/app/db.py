@@ -25,6 +25,7 @@ _ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "source": "TEXT DEFAULT 'chat'",
         "diff": "JSON",
         "chat_message_id": "INTEGER",
+        "pushed_at": "DATETIME",
     },
 }
 

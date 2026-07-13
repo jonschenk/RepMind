@@ -92,6 +92,8 @@ export interface Proposal {
   folder?: string;
   exercises: ProposedExercise[];
   status?: string;
+  kind?: string; // "create" | "update"
+  change_summary?: string;
 }
 
 export interface WeeklyProposal {

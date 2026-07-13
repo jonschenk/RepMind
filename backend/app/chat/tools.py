@@ -107,16 +107,28 @@ PROPOSE_ROUTINE_TOOL: dict = {
         "DISPLAY unit stated in the system prompt (pounds unless told otherwise), NOT kilograms - "
         "the app converts it. Give every working set (normal/failure/dropset) a concrete, round "
         "weight and rep count grounded in the user's recent logged weights; never leave weight "
-        "blank, and for a 'work up to a top set' day fill in the actual target number to hit."
+        "blank, and for a 'work up to a top set' day fill in the actual target number to hit. "
+        "To EDIT an existing routine in place (e.g. the user says 'fix my push day'), set "
+        "`target_routine_id` to that routine's id from list_routines and send the COMPLETE "
+        "routine as it should look after the change (the update overwrites the whole routine); "
+        "also set `change_summary`. Omit `target_routine_id` to create a brand-new routine."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "title": {"type": "string"},
             "notes": {"type": "string"},
+            "target_routine_id": {
+                "type": "string",
+                "description": "Set to an existing routine's id (from list_routines) to UPDATE it in place instead of creating a new one. The routine keeps its Hevy folder. Omit to create new.",
+            },
+            "change_summary": {
+                "type": "string",
+                "description": "When updating, a one-line 'what changed and why' (e.g. 'cut incline volume 4->3 sets, dropped OHP to 95 lb, weights were unrealistic'). Recorded in the shared change log the weekly review reads.",
+            },
             "folder": {
                 "type": "string",
-                "description": "Folder to group this routine under in Hevy. For a multi-day split, use the SAME short folder name (e.g. 'PPL') on every day so they land together. Omit for a standalone one-off routine.",
+                "description": "Folder to group a NEW routine under in Hevy. For a multi-day split, use the SAME short folder name (e.g. 'PPL') on every day. Ignored for updates (a routine keeps its folder). Omit for a standalone one-off.",
             },
             "exercises": {
                 "type": "array",

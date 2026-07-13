@@ -31,6 +31,8 @@ def _proposal_card(p: RoutineProposal) -> dict:
         "folder": payload.get("folder"),
         "exercises": payload.get("exercises", []),
         "status": p.status,
+        "kind": p.kind,
+        "change_summary": (p.diff or {}).get("changes_summary"),
     }
 
 

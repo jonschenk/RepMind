@@ -9,6 +9,7 @@ from typing import Any
 
 from sqlmodel import Session
 
+from app.analysis.changes import changes_context_block
 from app.chat.prompt import build_system_prompt
 from app.chat.tools import ALL_TOOLS, execute_read_tool
 from app.config import get_settings
@@ -27,10 +28,17 @@ def _create_proposal(session: Session, proposed: dict, weight_unit: str) -> dict
     # The model proposes `weight` in the user's display unit; store canonical `weight_kg`
     # so the rest of the pipeline (card, edit, push) stays kg-native.
     payload = routine_weights_to_kg(proposed, weight_unit)
+    # An existing-routine id turns this into an in-place update (PUT), else a create (POST).
+    target_id = (proposed.get("target_routine_id") or "").strip() or None
+    change_summary = proposed.get("change_summary")
     row = RoutineProposal(
         status="pending",
         title=payload.get("title", "Untitled routine"),
         payload=payload,
+        source="chat",
+        kind="update" if target_id else "create",
+        target_routine_id=target_id,
+        diff={"changes_summary": change_summary} if change_summary else None,
     )
     session.add(row)
     session.commit()
@@ -42,6 +50,8 @@ def _create_proposal(session: Session, proposed: dict, weight_unit: str) -> dict
         "folder": payload.get("folder"),
         "exercises": payload.get("exercises", []),
         "status": row.status,
+        "kind": row.kind,
+        "change_summary": change_summary,
     }
 
 
@@ -57,6 +67,11 @@ async def stream_chat(
     anthropic = get_async_anthropic()
     weight_unit = get_preferences(session)["weight_unit"]
     system = build_system_prompt(weight_unit)
+    # Give chat continuity with the weekly-review bot: recent approved routine changes from
+    # both surfaces, so it knows what was already edited (and doesn't redo/undo it).
+    changes = changes_context_block(session)
+    if changes:
+        system = f"{system}\n\n{changes}"
     # Prior turns are plain text; the tool loop within this request adds block content.
     messages: list[dict[str, Any]] = [
         {"role": m["role"], "content": m["content"]} for m in history
