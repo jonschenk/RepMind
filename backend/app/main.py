@@ -15,6 +15,7 @@ from app.config import get_settings
 from app.db import engine, init_db
 from app.hevy import HevyClient
 from app.models import SyncState
+from app.notify import send_notification
 from app.routes import chat, dashboard, routines, settings as settings_routes, sync, weekly
 from app.state import get_state
 from app.sync.service import run_sync
@@ -33,8 +34,16 @@ async def _weekly_review_job() -> None:
     try:
         with Session(engine) as session:
             client = HevyClient(settings)
-            await generate_weekly_review(session, client)
+            review = await generate_weekly_review(session, client)
             logger.info("Scheduled weekly review generated.")
+        n = len(review.get("proposals", []))
+        changes = f"{n} proposed change{'' if n == 1 else 's'}"
+        await send_notification(
+            "repMind weekly review ready",
+            f"Your weekly training review is ready ({changes}). Open the Weekly tab to review.",
+            tags=["chart_with_upwards_trend"],
+            click=settings.app_url,
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning("Scheduled weekly review failed: %s", exc)
 
@@ -140,9 +149,25 @@ def health():
         "dry_run": s.dry_run,
         "chat_model": s.chat_model,
         "coach_model": s.anthropic_model,
+        "ntfy_configured": s.ntfy_configured,
         "full_sync_done": bool(state and state.full_sync_done),
         "workout_count": state.workout_count if state else 0,
     }
+
+
+@app.post("/api/notify/test")
+async def notify_test():
+    """Send a test push to the configured ntfy topic so you can confirm your phone gets it."""
+    s = get_settings()
+    if not s.ntfy_configured:
+        raise HTTPException(400, "NTFY_TOPIC is not set in .env.")
+    ok = await send_notification(
+        "repMind test",
+        "If you can see this on your phone, notifications are working.",
+        tags=["white_check_mark"],
+        click=s.app_url,
+    )
+    return {"sent": ok, "topic": s.ntfy_topic}
 
 
 # --- Serve the built frontend (production) ----------------------------------------

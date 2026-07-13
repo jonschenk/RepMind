@@ -45,6 +45,17 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:5173"]
 
+    # ntfy push notifications (https://ntfy.sh). Set NTFY_TOPIC in .env to an unguessable
+    # topic and subscribe to it in the ntfy phone app. Empty topic disables notifications.
+    ntfy_server: str = "https://ntfy.sh"
+    ntfy_topic: str = ""
+    # Where a notification tap should open the app (tailnet URL).
+    app_url: str = "http://pi4host:8000"
+
+    @property
+    def ntfy_configured(self) -> bool:
+        return bool(self.ntfy_topic)
+
     @property
     def hevy_configured(self) -> bool:
         return bool(self.hevy_api_key)
