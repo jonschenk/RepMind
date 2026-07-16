@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, DashboardData, Health, RepMix, UsageData } from "../api";
+import { api, ChangeEntry, DashboardData, Health, RepMix, UsageData } from "../api";
 import { BodyCard } from "../components/BodyCard";
 import { Collapsible } from "../components/Collapsible";
 import { ProgressionCard } from "../components/ProgressionCard";
@@ -53,15 +53,38 @@ function UsagePanel({ usage }: { usage: UsageData }) {
   );
 }
 
+function ChangeLog({ changes }: { changes: ChangeEntry[] }) {
+  if (changes.length === 0) return <div className="muted">No routine changes yet.</div>;
+  return (
+    <>
+      {changes.map((c, i) => (
+        <div className="stalled-row" key={i}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="name">
+              {c.routine}{" "}
+              <span className="pill" style={{ marginLeft: 4 }}>{c.source}</span>{" "}
+              <span className="muted" style={{ fontSize: 12 }}>{c.kind}</span>
+            </div>
+            <div className="meta">{c.summary}</div>
+          </div>
+          <span className="meta" style={{ whiteSpace: "nowrap" }}>{(c.when ?? "").slice(0, 10)}</span>
+        </div>
+      ))}
+    </>
+  );
+}
+
 export function Dashboard({ health, refreshKey }: { health: Health | null; refreshKey?: number }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [usage, setUsage] = useState<UsageData | null>(null);
+  const [changes, setChanges] = useState<ChangeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Re-fetch when a sync bumps refreshKey so newly-logged workouts show without a reload.
   useEffect(() => {
     api.dashboard().then(setData).catch((e) => setError(String(e.message ?? e)));
     api.usage().then(setUsage).catch(() => {});
+    api.changes().then((r) => setChanges(r.changes)).catch(() => {});
   }, [refreshKey]);
 
   if (error) return <div className="panel result-err">{error}</div>;
@@ -98,6 +121,11 @@ export function Dashboard({ health, refreshKey }: { health: Health | null; refre
       </Collapsible>
       <Collapsible title="Weekly volume by muscle">
         <VolumeChart rows={data.weekly_volume} bare />
+      </Collapsible>
+      <Collapsible
+        title={changes ? `Recent routine changes${changes.length ? ` (${changes.length})` : ""}` : "Recent routine changes"}
+      >
+        {changes ? <ChangeLog changes={changes} /> : <div className="muted">Loading…</div>}
       </Collapsible>
       <Collapsible
         title={usage ? `AI spend this month: ≈ $${usage.month.cost_usd.toFixed(2)}` : "AI spend this month"}

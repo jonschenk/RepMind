@@ -144,6 +144,15 @@ export interface UsageData {
   all_time_cost_usd: number;
 }
 
+export interface ChangeEntry {
+  when: string | null;
+  source: string; // chat | weekly
+  kind: string; // create | update
+  routine: string;
+  summary: string;
+  hevy_routine_id?: string | null;
+}
+
 export type ChatEvent =
   | { type: "text"; text: string }
   | { type: "tool_use"; name: string; input: unknown }
@@ -184,6 +193,7 @@ export const api = {
   weeklyReview: () => fetch("/api/weekly").then((r) => j<WeeklyReviewData>(r)),
   generateWeekly: () => fetch("/api/weekly/generate", { method: "POST" }).then((r) => j<any>(r)),
   usage: () => fetch("/api/usage").then((r) => j<UsageData>(r)),
+  changes: () => fetch("/api/changes").then((r) => j<{ changes: ChangeEntry[] }>(r)),
   chatHistory: () =>
     fetch("/api/chat/history").then((r) =>
       j<{ role: string; content: string; proposals: Proposal[] }[]>(r),
