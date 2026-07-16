@@ -3,6 +3,8 @@
 
 # Python
 backend/.venv/
+backend/.venv-test/
+.pytest_cache/
 __pycache__/
 *.pyc
 *.db

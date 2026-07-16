@@ -1,0 +1,3 @@
+# Dev/test only — not installed on the Pi (deploy.sh installs requirements.txt).
+-r requirements.txt
+pytest>=8.0
