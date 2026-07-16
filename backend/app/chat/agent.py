@@ -18,6 +18,7 @@ from app.llm import get_async_anthropic
 from app.models import RoutineProposal
 from app.state import get_preferences
 from app.units import routine_weights_to_kg
+from app.usage import record_usage
 
 # A full multi-day split needs many tool calls (exercise lookups + one propose_routine
 # per day), so this must be generous or the model gets cut off mid-plan.
@@ -77,6 +78,7 @@ async def stream_chat(
         {"role": m["role"], "content": m["content"]} for m in history
     ]
 
+    total_in = total_out = 0
     try:
         capped = True
         for _ in range(MAX_TOOL_ITERATIONS):
@@ -98,6 +100,10 @@ async def stream_chat(
                     if event.type == "content_block_delta" and event.delta.type == "text_delta":
                         yield {"type": "text", "text": event.delta.text}
                 final = await stream.get_final_message()
+
+            if final.usage:  # each turn bills separately; sum them for the whole message
+                total_in += final.usage.input_tokens or 0
+                total_out += final.usage.output_tokens or 0
 
             # Echo the assistant turn (incl. thinking/tool_use blocks) back for context.
             messages.append({"role": "assistant", "content": final.content})
@@ -155,3 +161,6 @@ async def stream_chat(
         yield {"type": "done"}
     except Exception as exc:  # never leave the SSE stream hanging
         yield {"type": "error", "message": str(exc)}
+    finally:
+        if total_in or total_out:
+            record_usage("chat", settings.chat_model, total_in, total_out)

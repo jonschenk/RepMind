@@ -18,6 +18,7 @@ from app.config import get_settings
 from app.hevy.schemas import strip_dashes
 from app.llm import get_async_anthropic
 from app.state import get_preferences, get_state, set_state
+from app.usage import record_usage
 
 SUMMARY_KEY = "dashboard_summary"
 
@@ -88,6 +89,7 @@ async def generate_summary(session: Session) -> dict:
         system=system,
         messages=[{"role": "user", "content": user_msg}],
     )
+    record_usage("summary", settings.anthropic_model, resp.usage.input_tokens, resp.usage.output_tokens)
     text = next((b.text for b in resp.content if b.type == "text"), "")
     # Backstop the no-em-dash rule in case the model slips.
     return {"generated_at": generated_at, "summary": strip_dashes(text.strip()), "signals": signals}

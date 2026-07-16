@@ -17,6 +17,7 @@ from app.config import get_settings
 from app.hevy.schemas import strip_dashes
 from app.llm import get_async_anthropic
 from app.models import Workout, WorkoutSet
+from app.usage import record_usage
 
 _THEME_SCHEMA = {
     "type": "object",
@@ -92,6 +93,7 @@ async def extract_note_themes(session: Session, start: datetime, end: datetime) 
         system=f"You extract signal from a lifter's training notes. {NO_DASH_RULE}",
         messages=[{"role": "user", "content": user_msg}],
     )
+    record_usage("notes", settings.anthropic_model, resp.usage.input_tokens, resp.usage.output_tokens)
     text = next((b.text for b in resp.content if b.type == "text"), "{}")
     try:
         data = json.loads(text)

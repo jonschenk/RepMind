@@ -25,6 +25,7 @@ from app.llm import get_async_anthropic
 from app.state import get_preferences
 from app.models import RoutineProposal, WeeklyReview, Workout
 from app.units import routine_weights_to_kg, to_display
+from app.usage import record_usage
 
 # One structured response: narrative + a few complete, approvable routine changes.
 _SET = {
@@ -166,6 +167,7 @@ async def _generate_llm(settings, signals: dict, routines: list[dict], unit: str
         system=f"{load_coach_context()}\n\n{NO_DASH_RULE}",
         messages=[{"role": "user", "content": user_msg}],
     )
+    record_usage("weekly", settings.anthropic_model, resp.usage.input_tokens, resp.usage.output_tokens)
     text = next((b.text for b in resp.content if b.type == "text"), "{}")
     try:
         return json.loads(text)

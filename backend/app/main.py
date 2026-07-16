@@ -16,7 +16,15 @@ from app.db import engine, init_db
 from app.hevy import HevyClient
 from app.models import SyncState
 from app.notify import send_notification
-from app.routes import chat, dashboard, routines, settings as settings_routes, sync, weekly
+from app.routes import (
+    chat,
+    dashboard,
+    routines,
+    settings as settings_routes,
+    sync,
+    usage,
+    weekly,
+)
 from app.state import get_state
 from app.sync.service import run_sync
 
@@ -135,6 +143,7 @@ app.include_router(chat.router)
 app.include_router(routines.router)
 app.include_router(weekly.router)
 app.include_router(settings_routes.router)
+app.include_router(usage.router)
 
 
 @app.get("/api/health")

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, DashboardData, Health, RepMix } from "../api";
+import { api, DashboardData, Health, RepMix, UsageData } from "../api";
 import { BodyCard } from "../components/BodyCard";
 import { Collapsible } from "../components/Collapsible";
 import { ProgressionCard } from "../components/ProgressionCard";
@@ -32,13 +32,36 @@ function TrainingMixPanel({ mix }: { mix: RepMix }) {
   );
 }
 
+function UsagePanel({ usage }: { usage: UsageData }) {
+  const surfaces = Object.entries(usage.month.by_surface).sort((a, b) => b[1].cost_usd - a[1].cost_usd);
+  return (
+    <>
+      <div className="muted" style={{ marginBottom: 8, fontSize: 13 }}>
+        {usage.month_label} · {usage.month_calls} Claude calls · all-time ≈ ${usage.all_time_cost_usd.toFixed(2)}
+      </div>
+      {surfaces.length === 0 && <div className="muted">No usage yet this month.</div>}
+      {surfaces.map(([s, v]) => (
+        <div className="stalled-row" key={s}>
+          <span className="name" style={{ textTransform: "capitalize" }}>{s}</span>
+          <span className="meta">{v.calls} calls · ${v.cost_usd.toFixed(2)}</span>
+        </div>
+      ))}
+      <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+        Estimate from list prices (thinking counts as output); actual billing may differ.
+      </div>
+    </>
+  );
+}
+
 export function Dashboard({ health, refreshKey }: { health: Health | null; refreshKey?: number }) {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [usage, setUsage] = useState<UsageData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Re-fetch when a sync bumps refreshKey so newly-logged workouts show without a reload.
   useEffect(() => {
     api.dashboard().then(setData).catch((e) => setError(String(e.message ?? e)));
+    api.usage().then(setUsage).catch(() => {});
   }, [refreshKey]);
 
   if (error) return <div className="panel result-err">{error}</div>;
@@ -75,6 +98,11 @@ export function Dashboard({ health, refreshKey }: { health: Health | null; refre
       </Collapsible>
       <Collapsible title="Weekly volume by muscle">
         <VolumeChart rows={data.weekly_volume} bare />
+      </Collapsible>
+      <Collapsible
+        title={usage ? `AI spend this month: ≈ $${usage.month.cost_usd.toFixed(2)}` : "AI spend this month"}
+      >
+        {usage ? <UsagePanel usage={usage} /> : <div className="muted">Loading…</div>}
       </Collapsible>
     </div>
   );

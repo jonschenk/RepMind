@@ -112,6 +112,19 @@ class ChatMessage(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 
+class LlmUsage(SQLModel, table=True):
+    """One Claude API call's token usage + estimated cost, tagged by surface (chat / weekly
+    / summary / notes), so the user can see what they're spending."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    surface: str = Field(index=True)
+    model: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float = 0.0
+
+
 class AppState(SQLModel, table=True):
     """Tiny key/value memory store: cached generated content (e.g. the dashboard summary,
     so it isn't regenerated on every page load) and user preferences (e.g. weight unit)."""

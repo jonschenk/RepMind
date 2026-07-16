@@ -132,6 +132,18 @@ export interface WeeklyReviewData {
   proposals?: WeeklyProposal[];
 }
 
+export interface UsageData {
+  month_label: string;
+  month: {
+    cost_usd: number;
+    input_tokens: number;
+    output_tokens: number;
+    by_surface: Record<string, { cost_usd: number; calls: number }>;
+  };
+  month_calls: number;
+  all_time_cost_usd: number;
+}
+
 export type ChatEvent =
   | { type: "text"; text: string }
   | { type: "tool_use"; name: string; input: unknown }
@@ -171,6 +183,7 @@ export const api = {
     }).then((r) => j<any>(r)),
   weeklyReview: () => fetch("/api/weekly").then((r) => j<WeeklyReviewData>(r)),
   generateWeekly: () => fetch("/api/weekly/generate", { method: "POST" }).then((r) => j<any>(r)),
+  usage: () => fetch("/api/usage").then((r) => j<UsageData>(r)),
   chatHistory: () =>
     fetch("/api/chat/history").then((r) =>
       j<{ role: string; content: string; proposals: Proposal[] }[]>(r),
