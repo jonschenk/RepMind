@@ -16,6 +16,8 @@ from app.config import get_settings
 from app.hevy import HevyClient
 from app.hevy.resolve import search_templates
 from app.models import Workout, WorkoutSet
+from app.state import get_preferences
+from app.units import to_display
 
 # --- Tool schemas sent to Claude --------------------------------------------------
 
@@ -90,8 +92,28 @@ READ_TOOLS: list[dict] = [
     },
     {
         "name": "list_routines",
-        "description": "List the user's existing Hevy routines (live from Hevy).",
+        "description": (
+            "The user's whole program (live from Hevy): every routine with its folder (the "
+            "split it belongs to) and its list of exercises. Use this to see the FULL context "
+            "before changing any single day, so you don't duplicate a movement another day "
+            "already covers."
+        ),
         "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_routine",
+        "description": (
+            "Full current contents of one routine (exercises, sets, reps, weights in the "
+            "user's display unit, notes). Call this before editing a routine so your update "
+            "reflects what is actually in it, not a guess."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "routine_id": {"type": "string", "description": "Routine id from list_routines (preferred)."},
+                "name": {"type": "string", "description": "Or match by routine name."},
+            },
+        },
     },
 ]
 
@@ -222,12 +244,53 @@ def _get_workout_history(session: Session, inp: dict) -> Any:
 
 
 async def _list_routines(client: HevyClient) -> Any:
+    """Program overview: every routine with its folder and its exercise list, so the coach
+    can see the WHOLE split (e.g. which day already trains a movement) before changing one."""
     routines = await client.get_routines()
-    # Trim to the useful fields.
+    folders = {f.get("id"): f.get("title") for f in await client.get_routine_folders()}
     return [
-        {"id": r.get("id"), "title": r.get("title"), "folder_id": r.get("folder_id")}
+        {
+            "id": r.get("id"),
+            "title": r.get("title"),
+            "folder": folders.get(r.get("folder_id")),
+            "exercises": [ex.get("title") for ex in r.get("exercises", [])],
+        }
         for r in routines
     ]
+
+
+async def _get_routine(client: HevyClient, session: Session, inp: dict) -> Any:
+    """Full current contents of one routine (by id or name), weights in the user's display
+    unit. Use before editing so the update reflects the real routine, not a guess."""
+    unit = get_preferences(session)["weight_unit"]
+    routines = await client.get_routines()
+    rid = (inp.get("routine_id") or "").strip()
+    name = (inp.get("name") or "").strip().lower()
+    match = None
+    for r in routines:
+        if rid and r.get("id") == rid:
+            match = r
+            break
+        if name and name in (r.get("title", "") or "").lower():
+            match = r  # keep looking for an exact id match, else last name match wins
+    if not match:
+        return {"error": "routine not found; call list_routines for exact names/ids"}
+    return {
+        "id": match.get("id"),
+        "title": match.get("title"),
+        "exercises": [
+            {
+                "name": ex.get("title"),
+                "rest_seconds": ex.get("rest_seconds"),
+                "notes": ex.get("notes"),
+                "sets": [
+                    {"type": s.get("type"), "weight": to_display(s.get("weight_kg"), unit), "reps": s.get("reps")}
+                    for s in ex.get("sets", [])
+                ],
+            }
+            for ex in match.get("exercises", [])
+        ],
+    }
 
 
 async def execute_read_tool(
@@ -247,6 +310,8 @@ async def execute_read_tool(
             result = _search_exercises(session, inp)
         elif name == "list_routines":
             result = await _list_routines(client)
+        elif name == "get_routine":
+            result = await _get_routine(client, session, inp)
         else:
             return json.dumps({"error": f"unknown tool {name}"})
         return json.dumps(result, default=str)

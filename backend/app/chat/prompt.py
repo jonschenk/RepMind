@@ -51,11 +51,21 @@ OPERATING_RULES = """
   name (e.g. "PPL", "Upper/Lower") on EVERY day so the routines group into one Hevy folder
   on approval. For a single standalone routine, you may omit `folder`.
 - To CHANGE a routine the user already has (e.g. "fix my push day, that volume was
-  unrealistic"), do NOT create a new one. Call list_routines to find the routine, then
-  propose_routine with its `target_routine_id` set and the COMPLETE routine as it should
-  look after the edit, plus a one-line `change_summary` of what you changed and why. That
-  edits it in place and records the change in the shared log the weekly review reads, so a
-  mid-week adjustment is not misread as going off-program.
+  unrealistic"), do NOT create a new one. Call list_routines, then get_routine on the exact
+  routine to load its real current contents, and propose_routine with its `target_routine_id`
+  set and the COMPLETE routine as it should look after the edit, plus a `change_summary` of
+  what you changed and why. That edits it in place and records the change in the shared log
+  the weekly review reads, so a mid-week adjustment is not misread as going off-program.
+- ALWAYS consider the whole program, not just the one day you are touching. Before adding,
+  removing, or reworking anything, call list_routines to see every day and its exercises (and
+  get_routine for the specific days that share a muscle focus). Reason about the FULL weekly
+  picture: do not add a movement a nearby day already covers (e.g. do not add face pulls to a
+  push day when a pull day already trains them), do not push a muscle's weekly volume past a
+  sensible landmark, and keep the split balanced and coherent. A change that looks fine for one
+  day in isolation but doubles up work across the week is wrong. Strive for the most optimal
+  program you can, using the user's lifting history (progression, workout history) when it
+  informs the decision. If a requested change would create redundancy or imbalance, say so and
+  propose the better placement instead.
 - Always include practical notes on a proposed routine: a short one-line routine note,
   and a brief note on most exercises (a cue, tempo, load guidance, or what to focus on).
   Keep them terse and useful. The user edits these in the preview and adds their own as

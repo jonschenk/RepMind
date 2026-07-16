@@ -23,7 +23,8 @@ const TOOL_LABEL: Record<string, string> = {
   get_exercise_trend: "Pulling a lift's trend",
   get_workout_history: "Reading recent workouts",
   search_exercises: "Looking up exercises",
-  list_routines: "Checking your routines",
+  list_routines: "Reviewing your whole program",
+  get_routine: "Reading a routine in full",
   propose_routine: "Drafting the routine",
 };
 
