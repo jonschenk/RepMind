@@ -65,6 +65,15 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
     });
   }
 
+  // Remove a denied proposal card from its message (backend already marked it dismissed).
+  function dismissProposal(msgIdx: number, proposalId: number) {
+    setMessages((prev) =>
+      prev.map((m, idx) =>
+        idx === msgIdx ? { ...m, proposals: m.proposals.filter((p) => p.id !== proposalId) } : m,
+      ),
+    );
+  }
+
   async function send(text: string) {
     if (!text.trim() || busy) return;
     setMessages((prev) => [
@@ -156,6 +165,7 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
                   proposal={p}
                   badge={p.kind === "update" ? "UPDATE" : undefined}
                   rationale={p.change_summary}
+                  onDismiss={() => dismissProposal(i, p.id)}
                 />
               ))}
             </div>
