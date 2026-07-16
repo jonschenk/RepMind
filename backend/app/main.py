@@ -186,6 +186,10 @@ if _STATIC_DIR.is_dir():
             raise HTTPException(status_code=404, detail="Not found")
         candidate = (_STATIC_DIR / full_path).resolve()
         # Serve a real asset if it exists and stays inside the static dir; else index.html.
+        # Assets have content-hashed names (safe to cache forever); index.html must revalidate
+        # so a new deploy's bundle is picked up without a manual hard-refresh.
         if full_path and candidate.is_file() and _STATIC_DIR.resolve() in candidate.parents:
             return FileResponse(candidate)
-        return FileResponse(_STATIC_DIR / "index.html")
+        return FileResponse(
+            _STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"}
+        )
