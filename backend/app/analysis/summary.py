@@ -12,6 +12,7 @@ from sqlmodel import Session
 
 from app.analysis import progression
 from app.analysis import volume as volume_mod
+from app.analysis.changes import changes_context_block
 from app.chat.prompt import NO_DASH_RULE, load_coach_context
 from app.config import get_settings
 from app.hevy.schemas import strip_dashes
@@ -71,15 +72,20 @@ async def generate_summary(session: Session) -> dict:
         "volume), NOT by estimated 1RM. Call out what's regressing, protect what's "
         "progressing, and check the side/rear-delt priority in `muscle_volume_2wk`. Give "
         f"judgment, don't restate every number. Present weights in {unit} (signals are kg; "
-        "1 kg = 2.2046 lb).\n\n"
+        "1 kg = 2.2046 lb). If a recent routine change below already addresses an issue, do "
+        "not tell them to do it again; acknowledge it's handled and move on.\n\n"
         f"SIGNALS:\n{json.dumps(signals, indent=2, default=str)}"
     )
+    system = f"{load_coach_context()}\n\n{NO_DASH_RULE}"
+    changes = changes_context_block(session)
+    if changes:
+        system = f"{system}\n\n{changes}"
     resp = await client.messages.create(
         model=settings.anthropic_model,
         max_tokens=1200,
         thinking={"type": "adaptive"},
         output_config={"effort": "medium"},
-        system=f"{load_coach_context()}\n\n{NO_DASH_RULE}",
+        system=system,
         messages=[{"role": "user", "content": user_msg}],
     )
     text = next((b.text for b in resp.content if b.type == "text"), "")

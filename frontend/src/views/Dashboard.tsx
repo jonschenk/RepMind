@@ -71,7 +71,7 @@ export function Dashboard({ health, refreshKey }: { health: Health | null; refre
         <ProgressionCard items={data.progression} bare />
       </Collapsible>
       <Collapsible title="Bodyweight">
-        <BodyCard bare />
+        <BodyCard bare refreshKey={refreshKey} />
       </Collapsible>
       <Collapsible title="Weekly volume by muscle">
         <VolumeChart rows={data.weekly_volume} bare />

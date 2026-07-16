@@ -5,7 +5,7 @@ and stalled-lift detection."""
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Literal, Optional
 
 from sqlmodel import Session, select
@@ -124,61 +124,3 @@ def weekly_volume_by_muscle(session: Session) -> list[dict]:
         for (week, muscle), vol in agg.items()
     ]
     return sorted(out, key=lambda d: (d["week"], d["muscle"]))
-
-
-def stalled_lifts(
-    session: Session,
-    lookback_sessions: int,
-    formula: Formula = "epley",
-    recency_days: int = 28,
-) -> list[dict]:
-    """Flag lifts the user is CURRENTLY training whose best recent effort hasn't beaten
-    their best earlier effort.
-
-    Uses a rolling-window comparison (best estimated-1RM in the last `lookback_sessions`
-    sessions vs the best of all earlier sessions), which is robust to alternating
-    heavy/hypertrophy days logged under one exercise name — a single heavy day in the
-    window still counts. Lifts not trained within `recency_days` of the latest logged
-    workout are treated as dropped, not stalled, and excluded.
-    """
-    all_dates = [
-        r.workout_start_time
-        for r in session.exec(select(WorkoutSet)).all()
-        if r.workout_start_time
-    ]
-    if not all_dates:
-        return []
-    latest = max(all_dates)
-
-    exercises = list_tracked_exercises(session, min_sessions=lookback_sessions + 1)
-    stalled: list[dict] = []
-    for ex in exercises:
-        series = exercise_trend(session, ex["template_id"] or ex["exercise"], formula)
-        if len(series) < lookback_sessions + 1:
-            continue
-
-        last_date_s = series[-1]["date"]
-        last_dt = datetime.fromisoformat(last_date_s) if last_date_s else None
-        if last_dt is None or (latest - last_dt) > timedelta(days=recency_days):
-            continue  # not currently training this lift
-
-        ests = [s["est_1rm"] for s in series]
-        recent_best = max(ests[-lookback_sessions:])
-        prior_best = max(ests[:-lookback_sessions])
-        if recent_best < prior_best:  # no PR in the recent window
-            best_all = max(ests)
-            pr_index = max(i for i, e in enumerate(ests) if e == best_all)
-            stalled.append(
-                {
-                    "exercise": ex["exercise"],
-                    "template_id": ex["template_id"],
-                    "best_est_1rm": best_all,
-                    "recent_best_est_1rm": recent_best,
-                    "current_est_1rm": ests[-1],
-                    "sessions_since_pr": len(series) - 1 - pr_index,
-                    "last_pr_date": series[pr_index]["date"],
-                    "last_session_date": last_date_s,
-                }
-            )
-    # Surface the biggest plateaus first (largest gap between prior best and recent best).
-    return sorted(stalled, key=lambda d: d["best_est_1rm"] - d["recent_best_est_1rm"], reverse=True)

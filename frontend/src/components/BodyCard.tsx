@@ -12,13 +12,14 @@ import {
 import { api, BodyStats } from "../api";
 import { fmtWeight, round1, toUnit, useUnit } from "../units";
 
-export function BodyCard({ bare }: { bare?: boolean }) {
+export function BodyCard({ bare, refreshKey }: { bare?: boolean; refreshKey?: number }) {
   const { unit } = useUnit();
   const [bs, setBs] = useState<BodyStats | null>(null);
 
+  // Re-fetch when a sync bumps refreshKey so a new bodyweight reading shows without a reload.
   useEffect(() => {
     api.body().then(setBs).catch(() => setBs(null));
-  }, []);
+  }, [refreshKey]);
 
   if (!bs) return null;
   if (!bs.has_data) {
