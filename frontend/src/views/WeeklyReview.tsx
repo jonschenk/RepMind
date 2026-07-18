@@ -11,6 +11,40 @@ function statusClass(s: string): string {
   return "";
 }
 
+// The weekly review is scheduled Monday 06:00 (see main.py). Compute ms until the next one
+// in the viewer's local time.
+function msUntilNextReview(now: Date): number {
+  const target = new Date(now);
+  target.setHours(6, 0, 0, 0);
+  let daysToMon = (1 - target.getDay() + 7) % 7; // 0 = today is Monday
+  if (daysToMon === 0 && now.getTime() >= target.getTime()) daysToMon = 7; // past 6am Mon
+  target.setDate(target.getDate() + daysToMon);
+  return target.getTime() - now.getTime();
+}
+
+function fmtCountdown(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function NextCheckIn() {
+  const [ms, setMs] = useState(() => msUntilNextReview(new Date()));
+  useEffect(() => {
+    const id = setInterval(() => setMs(msUntilNextReview(new Date())), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span className="pill" title="Weekly review runs automatically Monday 6am">
+      Next check-in: Mon 6am · in {fmtCountdown(ms)}
+    </span>
+  );
+}
+
 function asProposal(p: WeeklyProposal): Proposal {
   return {
     id: p.id,
@@ -67,6 +101,7 @@ export function WeeklyReview({ anthropicReady }: { anthropicReady: boolean }) {
           </span>
         )}
         <div className="spacer" />
+        <NextCheckIn />
         <button className="btn" onClick={generate} disabled={generating}>
           {generating ? "Generating…" : "Generate now"}
         </button>
