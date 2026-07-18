@@ -114,8 +114,10 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(
         _summary_refresh_job, "cron", day_of_week="sat", hour=7, minute=0, id="summary_refresh"
     )
-    # Keep the cache fresh even when nobody has the app open.
-    scheduler.add_job(_periodic_sync, "interval", minutes=30, id="periodic_sync")
+    # Sync + check for split completion often, so a finished week triggers the review within
+    # a few minutes. Cheap: delta sync is a couple of free Hevy calls, and the cycle check
+    # short-circuits before any Hevy/Claude work unless you're mid-cycle with new workouts.
+    scheduler.add_job(_periodic_sync, "interval", minutes=5, id="periodic_sync")
     scheduler.start()
     yield
     scheduler.shutdown(wait=False)
