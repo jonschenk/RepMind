@@ -39,7 +39,7 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
   // by word as raw deltas arrive.
   const targetRef = useRef("");
   const shownRef = useRef(0);
-  const rafRef = useRef<number | null>(null);
+  const tickRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const doneRef = useRef(false);
 
   // Deliberately do NOT replay past history into the view: each browser session starts as a
@@ -73,8 +73,8 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
     if (!text.trim() || busy) return;
 
     // Reset the smooth-reveal buffer for this reply.
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
+    if (tickRef.current != null) clearTimeout(tickRef.current);
+    tickRef.current = null;
     targetRef.current = "";
     shownRef.current = 0;
     doneRef.current = false;
@@ -96,12 +96,16 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
         return next;
       });
 
-    // Reveal buffered text at a steady pace. chars/frame scales with backlog so it catches
-    // up on bursts but stays gentle when keeping pace, giving a smooth typewriter feel.
+    // Reveal buffered text at a steady pace. chars/tick scales with backlog so it catches up
+    // on bursts but stays gentle when keeping pace, giving a smooth typewriter feel. We use
+    // setTimeout (not requestAnimationFrame) so the reveal keeps progressing even if the tab
+    // is backgrounded - rAF fully pauses when hidden, which would freeze the reply and leave
+    // it stuck "thinking" until the user returned.
+    const TICK_MS = 20;
     const pump = () => {
       const target = targetRef.current;
       if (shownRef.current >= target.length) {
-        rafRef.current = null; // caught up
+        tickRef.current = null; // caught up
         if (doneRef.current) {
           setBusy(false);
           setStatus(null);
@@ -113,10 +117,10 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
       shownRef.current = Math.min(target.length, shownRef.current + inc);
       patchAssistant((m) => ({ ...m, content: target.slice(0, shownRef.current) }));
       scrollDown();
-      rafRef.current = requestAnimationFrame(pump);
+      tickRef.current = setTimeout(pump, TICK_MS);
     };
     const ensurePump = () => {
-      if (rafRef.current == null) rafRef.current = requestAnimationFrame(pump);
+      if (tickRef.current == null) tickRef.current = setTimeout(pump, TICK_MS);
     };
 
     try {
