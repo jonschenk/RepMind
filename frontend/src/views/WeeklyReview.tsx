@@ -39,8 +39,11 @@ function NextCheckIn() {
     return () => clearInterval(id);
   }, []);
   return (
-    <span className="pill" title="Weekly review runs automatically Monday 6am">
-      Next check-in: Mon 6am · in {fmtCountdown(ms)}
+    <span
+      className="pill"
+      title="The review generates automatically when you finish your split. Monday 6am is a backup if a cycle hasn't completed."
+    >
+      Auto-review when you finish your split · backup Mon 6am (in {fmtCountdown(ms)})
     </span>
   );
 }

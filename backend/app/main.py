@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from sqlmodel import Session
 
 from app.analysis.summary import SUMMARY_KEY, refresh_summary
-from app.coach.weekly_review import generate_weekly_review
+from app.coach.auto_review import cron_backup, maybe_generate_on_cycle
 from app.config import get_settings
 from app.db import engine, init_db
 from app.hevy import HevyClient
@@ -36,23 +36,14 @@ logger = logging.getLogger("repmind")
 
 
 async def _weekly_review_job() -> None:
-    """Pre-generate the weekly review so it's ready in-app. Best-effort."""
+    """Monday backup: generate the weekly review unless a workout-triggered one already ran
+    in the last few days. Best-effort."""
     settings = get_settings()
     if not (settings.hevy_configured and settings.anthropic_configured):
         return
     try:
         with Session(engine) as session:
-            client = HevyClient(settings)
-            review = await generate_weekly_review(session, client)
-            logger.info("Scheduled weekly review generated.")
-        n = len(review.get("proposals", []))
-        changes = f"{n} proposed change{'' if n == 1 else 's'}"
-        await send_notification(
-            "repMind weekly review ready",
-            f"Your weekly training review is ready ({changes}). Open the Weekly tab to review.",
-            tags=["chart_with_upwards_trend"],
-            click=settings.app_url,
-        )
+            await cron_backup(session, HevyClient(settings))
     except Exception as exc:  # noqa: BLE001
         logger.warning("Scheduled weekly review failed: %s", exc)
 
@@ -82,6 +73,8 @@ async def _periodic_sync() -> None:
             client = HevyClient(settings)
             result = await run_sync(session, client)
             logger.info("Periodic sync: %s", result)
+            # Fire the weekly review if this brought the training week to completion.
+            await maybe_generate_on_cycle(session, client)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Periodic sync failed: %s", exc)
 
@@ -102,6 +95,7 @@ async def _startup_sync() -> None:
             if settings.anthropic_configured and get_state(session, SUMMARY_KEY) is None:
                 await refresh_summary(session)
                 logger.info("Initial dashboard summary generated and cached.")
+            await maybe_generate_on_cycle(session, client)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Startup sync failed (continuing): %s", exc)
 
