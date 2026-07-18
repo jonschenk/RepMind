@@ -91,12 +91,11 @@ async def stream_chat(
                 # reply. Streaming makes a high cap safe (no request timeout), and we're
                 # only billed for tokens actually produced.
                 max_tokens=24000,
+                # Adaptive thinking with no effort cap: let the coach reason as deeply as a
+                # routine revision needs (the smart coaching is the whole point). It stays
+                # cheap on simple questions and thinks hard on program design. Monitor spend
+                # in the AI-spend panel rather than capping quality.
                 thinking={"type": "adaptive"},
-                # Cap how deep adaptive thinking goes. Without this, chat occasionally went
-                # on a long thinking + multi-tool spree on an open-ended question and cost
-                # ~20x a normal turn. "medium" keeps the coaching sharp while bounding the
-                # worst case for predictable cost. max_tokens stays high for split output.
-                output_config={"effort": "medium"},
                 system=system,
                 tools=ALL_TOOLS,
                 messages=messages,

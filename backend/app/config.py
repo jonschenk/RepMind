@@ -17,11 +17,11 @@ class Settings(BaseSettings):
     dry_run: bool = True
 
     hevy_base_url: str = "https://api.hevyapp.com"
-    # Interactive chat fires several tool calls per message, so it uses the cheaper
-    # Sonnet 5 (same request surface as Opus: adaptive thinking, tool use, streaming).
-    chat_model: str = "claude-sonnet-5"
-    # Weekly review, dashboard summary, and notes run ~2-3x/week (scheduled) where the
-    # extra quality is worth the cost, so they stay on Opus.
+    # The coaching intelligence IS the product, so chat runs on the most capable model
+    # (Opus 4.8) for genuinely good routine revisions, not the cheaper Sonnet. Cost is the
+    # secondary concern here (see the AI-spend panel to monitor it).
+    chat_model: str = "claude-opus-4-8"
+    # Weekly review, dashboard summary, and notes also run on Opus.
     anthropic_model: str = "claude-opus-4-8"
 
     database_url: str = "sqlite:///./repmind.db"
