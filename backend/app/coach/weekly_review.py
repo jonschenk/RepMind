@@ -113,6 +113,15 @@ Write:
    lateral/rear-delt volume only if under target; do NOT add pressing volume to fix delts.
    `changes_summary` is a one-line diff.
 
+   Reason across the WHOLE split, not one day in isolation. Look at every current routine
+   together: if a muscle is trained redundantly on adjacent days (e.g. rear delts on both
+   push and pull) and its weekly volume in `muscle_volume` is at or over target, propose
+   TRIMMING the redundant work (consolidate to fewer days), do not add more. Read the current
+   routines' exercise `notes` and the user's logged workout `notes` for the week: if they flag
+   a muscle as fried / already-hit or a movement as redundant, act on it. Do not program the
+   same movement on back-to-back days without a clear reason. Aim for the most optimal weekly
+   distribution, not just a locally-sensible single day.
+
    Each set's `weight` is in the user's DISPLAY unit (stated below), NOT kilograms - the app
    converts it. The current routines below are already shown in that unit, so keep the same
    unit. Use real, round gym numbers (in pounds use multiples of 5 like 135, 185, 225; in
@@ -206,6 +215,7 @@ def _current_routines(routines_raw: list[dict], unit: str) -> list[dict]:
                     {
                         "title": ex.get("title"),
                         "exercise_template_id": ex.get("exercise_template_id"),
+                        "notes": ex.get("notes"),
                         "sets": [
                             {"type": s.get("type"), "weight": to_display(s.get("weight_kg"), unit), "reps": s.get("reps")}
                             for s in ex.get("sets", [])
