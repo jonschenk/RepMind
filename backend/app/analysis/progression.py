@@ -19,8 +19,14 @@ from sqlmodel import Session, select
 from app.analysis.trends import WORKING_SET_TYPES, estimated_1rm
 from app.models import ExerciseTemplate, WorkoutSet
 
-STRENGTH_MAX = 5       # reps <= 5 -> strength
-HYPERTROPHY_MAX = 15   # 6-15 -> hypertrophy; 16+ -> endurance/metabolite
+# Rep-range bins follow the load-rep continuum (Schoenfeld/Grgic et al., "Loading
+# Recommendations for Muscle Strength, Hypertrophy, and Local Endurance: A Re-examination of the
+# Repetition Continuum", Sports 2021, + supporting hypertrophy meta-analyses). Growth is similar
+# across ~6-20 reps when sets are taken near failure, so hypertrophy runs to 20, not 15 -- a
+# 20-rep set is a growth stimulus, not endurance. These are coarse bins over a continuum;
+# proximity to failure matters more than the exact rep count.
+STRENGTH_MAX = 5       # 1-5 reps  (~>=85% 1RM)  -> strength / neural
+HYPERTROPHY_MAX = 20   # 6-20 reps (~60-85% 1RM) -> hypertrophy; 21+ (light) -> endurance
 
 
 def _lift_sets(session: Session, exercise: str) -> list[WorkoutSet]:

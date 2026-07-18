@@ -10,8 +10,8 @@ import { VolumeChart } from "../components/VolumeChart";
 function TrainingMixPanel({ mix }: { mix: RepMix }) {
   const rows: [string, number, string][] = [
     ["Strength (1-5 reps)", mix.strength, "var(--accent-2)"],
-    ["Hypertrophy (6-15)", mix.hypertrophy, "var(--good)"],
-    ["Endurance (16+)", mix.endurance, "var(--warn)"],
+    ["Hypertrophy (6-20)", mix.hypertrophy, "var(--good)"],
+    ["Endurance (21+)", mix.endurance, "var(--warn)"],
   ];
   return (
     <div className="panel">
