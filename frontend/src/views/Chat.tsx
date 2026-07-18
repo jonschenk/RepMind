@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { api, Proposal, streamChat } from "../api";
+import { useRef, useState } from "react";
+import { Proposal, streamChat } from "../api";
 import { RoutinePreviewCard } from "../components/RoutinePreviewCard";
 import { renderLite } from "../renderLite";
 
@@ -35,29 +35,9 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
   const [status, setStatus] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Load persisted history (server-side memory) on mount, then jump to the newest message.
-  useEffect(() => {
-    api
-      .chatHistory()
-      .then((rows) => {
-        setMessages(
-          rows.map((r) => ({
-            role: r.role as "user" | "assistant",
-            content: r.content,
-            tools: [],
-            proposals: r.proposals ?? [],
-          })),
-        );
-        // Two frames so the list (incl. any routine cards) has laid out before we scroll.
-        requestAnimationFrame(() =>
-          requestAnimationFrame(() => {
-            const el = scrollRef.current;
-            if (el) el.scrollTop = el.scrollHeight;
-          }),
-        );
-      })
-      .catch(() => {});
-  }, []);
+  // Deliberately do NOT replay past history into the view: each browser session starts as a
+  // clean slate. The coach still remembers, though - the backend feeds the recent stored
+  // turns to the model as context on every message, so memory is preserved server-side.
 
   function scrollDown() {
     requestAnimationFrame(() => {
