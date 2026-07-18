@@ -34,6 +34,13 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Smooth-reveal buffer: incoming token deltas accumulate in targetRef and are revealed a
+  // few chars per animation frame, so the reply types out smoothly instead of jumping word
+  // by word as raw deltas arrive.
+  const targetRef = useRef("");
+  const shownRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
+  const doneRef = useRef(false);
 
   // Deliberately do NOT replay past history into the view: each browser session starts as a
   // clean slate. The coach still remembers, though - the backend feeds the recent stored
@@ -44,6 +51,13 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
       const el = scrollRef.current;
       if (el) el.scrollTop = el.scrollHeight;
     });
+  }
+
+  // Clear the visible thread without touching server-side memory (the coach still gets the
+  // recent stored turns as context on the next message).
+  function newChat() {
+    setMessages([]);
+    setStatus(null);
   }
 
   // Remove a denied proposal card from its message (backend already marked it dismissed).
@@ -57,6 +71,14 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
 
   async function send(text: string) {
     if (!text.trim() || busy) return;
+
+    // Reset the smooth-reveal buffer for this reply.
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    targetRef.current = "";
+    shownRef.current = 0;
+    doneRef.current = false;
+
     setMessages((prev) => [
       ...prev,
       { role: "user", content: text, tools: [], proposals: [] },
@@ -74,11 +96,35 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
         return next;
       });
 
+    // Reveal buffered text at a steady pace. chars/frame scales with backlog so it catches
+    // up on bursts but stays gentle when keeping pace, giving a smooth typewriter feel.
+    const pump = () => {
+      const target = targetRef.current;
+      if (shownRef.current >= target.length) {
+        rafRef.current = null; // caught up
+        if (doneRef.current) {
+          setBusy(false);
+          setStatus(null);
+        }
+        return; // re-armed by the next text delta or the finally block
+      }
+      const backlog = target.length - shownRef.current;
+      const inc = Math.min(40, Math.max(2, Math.ceil(backlog / 6)));
+      shownRef.current = Math.min(target.length, shownRef.current + inc);
+      patchAssistant((m) => ({ ...m, content: target.slice(0, shownRef.current) }));
+      scrollDown();
+      rafRef.current = requestAnimationFrame(pump);
+    };
+    const ensurePump = () => {
+      if (rafRef.current == null) rafRef.current = requestAnimationFrame(pump);
+    };
+
     try {
       await streamChat(text, (e) => {
         if (e.type === "text") {
           setStatus(null);
-          patchAssistant((m) => ({ ...m, content: m.content + e.text }));
+          targetRef.current += e.text;
+          ensurePump();
         } else if (e.type === "tool_use") {
           setStatus(TOOL_LABEL[e.name] ?? "Working");
           patchAssistant((m) => ({ ...m, tools: [...m.tools, e.name] }));
@@ -86,16 +132,17 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
           setStatus("Drafting the routine");
           patchAssistant((m) => ({ ...m, proposals: [...m.proposals, e.proposal] }));
         } else if (e.type === "error") {
-          patchAssistant((m) => ({ ...m, content: m.content + `\n\n⚠️ ${e.message}` }));
+          targetRef.current += `\n\n⚠️ ${e.message}`;
+          ensurePump();
         }
         scrollDown();
       });
     } catch (err: any) {
-      patchAssistant((m) => ({ ...m, content: m.content + `\n\n⚠️ ${err.message ?? err}` }));
+      targetRef.current += `\n\n⚠️ ${err.message ?? err}`;
+      ensurePump();
     } finally {
-      setBusy(false);
-      setStatus(null);
-      scrollDown();
+      doneRef.current = true;
+      ensurePump(); // reveal any remainder and flip busy off when caught up
     }
   }
 
@@ -103,6 +150,13 @@ export function Chat({ anthropicReady }: { anthropicReady: boolean }) {
     <div className="chat-wrap">
       {!anthropicReady && (
         <div className="banner">ANTHROPIC_API_KEY is not set — chat is disabled. Add it to .env and restart.</div>
+      )}
+      {messages.length > 0 && (
+        <div className="chat-toolbar">
+          <button className="btn ghost small" onClick={newChat} disabled={busy} title="Clear the view; the coach still remembers past chats">
+            New chat
+          </button>
+        </div>
       )}
       <div className="messages" ref={scrollRef}>
         {messages.length === 0 && (

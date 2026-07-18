@@ -122,6 +122,8 @@ select, input, textarea {
 @keyframes blink { 0%, 70%, 100% { opacity: 0.25; } 35% { opacity: 1; } }
 .toolchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .toolchip { font-size: 11px; color: var(--muted); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; }
+.chat-toolbar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.btn.small { font-size: 12px; padding: 5px 10px; font-weight: 600; }
 .composer { display: flex; gap: 10px; margin-top: 14px; }
 .composer textarea { flex: 1; resize: none; min-height: 48px; }
 
