@@ -132,20 +132,25 @@ Write:
    same movement on back-to-back days without a clear reason. Aim for the most optimal weekly
    distribution, not just a locally-sensible single day.
 
-   GROUND EVERY NUMBER AND EXPLAIN IT. This is the whole point - the user wants a coach who
-   makes informed decisions, not one who copies last week's numbers. For each exercise in a
-   routine you propose, set its `weight` and `reps` from `recent_performance` (what they
-   actually hit), progressed sensibly, and make the exercise `notes` explain the loading like a
-   coach would:
-   - If you HOLD a weight the same, you MUST say why in the note (they ground the last set /
-     missed reps / a per-set note flagged it too heavy / they just topped the rep range and
-     should bank a solid week before adding). Never leave a number unchanged without a reason -
-     an unexplained repeat is exactly what makes it feel arbitrary.
-   - If you PROGRESS, cite what they did (e.g. "you hit 275x3 clean last week, up to 280" or
-     "add a rep: you got 10,10,9, chase 11s before more weight").
-   - If you back off, tie it to their data or note (fatigue, a regressing verdict, a form flag).
-   Even exercises you are not otherwise changing get a one-line loading rationale in their note,
-   so nothing in the routine looks like a guess.
+   GROUND EVERY NUMBER, EXPLAIN IT, AND GIVE A PROGRESSION TRIGGER. This is the whole point -
+   the user wants a coach who makes informed decisions and a clear path forward, not one who
+   copies last week's numbers into a perpetual stuck point. For each exercise you propose, set
+   its `weight` and `reps` from `recent_performance` (what they actually hit), and its `notes`
+   MUST do BOTH of these:
+   1. Explain the current loading from their real data: if you HOLD a weight, say why (they
+      ground the last set, missed reps, a per-set note flagged it too heavy, or they just topped
+      the rep range); if you PROGRESS, cite what they hit ("you got 10/10/9, chase 11s"); if you
+      BACK OFF, tie it to their data or a note.
+   2. State the concrete PROGRESSION TRIGGER: the specific, checkable condition that earns the
+      NEXT increase, AND the exact next weight. Use double progression. Examples: "hit 10/10/10
+      clean at 225 and it's 230 next"; "all three sets of 335x3 with fast bar speed earns 345";
+      "once every set reaches 12 reps at 155, go 165". EVERY working lift gets this, including
+      ones you are holding or not otherwise changing - the user must always know exactly what
+      unlocks more weight, so NO lift ever reads as permanently stuck. Never write a vague
+      trigger like "progress when ready"; name the number and the condition.
+
+   When you cite the user's own notes, quote them VERBATIM - never embellish, add adjectives, or
+   infer detail they didn't write (if they wrote "solid", do not upgrade it to "moved clean").
 
    Each set's `weight` is in the user's DISPLAY unit (stated below), NOT kilograms - the app
    converts it. The current routines below are already shown in that unit, so keep the same
