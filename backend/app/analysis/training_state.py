@@ -14,7 +14,6 @@ is "stalled" by the numbers but not a problem, so the narrative still applies ju
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import timedelta
 
 from sqlmodel import Session, select
 
@@ -26,16 +25,19 @@ from app.analysis.progression import (
 from app.analysis.trends import WORKING_SET_TYPES
 from app.models import WorkoutSet
 
-# A lift with no new best on ANY axis (est-1RM, volume-load, or best set) for this many of its
-# own sessions is stagnating. Trained ~1-2x/week, 6 sessions is roughly 3-6 weeks.
+# A lift with no volume-or-best-set improvement for this many of its own sessions is stalling.
+# Trained ~1-2x/week, 6 sessions is roughly 3-6 weeks.
 STALL_MIN_SESSIONS = 6
 # Stuck this long is past "add a rep" territory - the stimulus is stale, consider a swap.
 SWAP_MIN_SESSIONS = 9
+# "Improvement" is measured against the best of the previous STALL_WINDOW sessions (recent-
+# relative, not all-time), long enough to see through session-to-session noise.
+STALL_WINDOW = 8
 # Weeks of accumulation with no clearly lighter week before a deload is worth flagging.
 DELOAD_WEEKS_THRESHOLD = 7
 
 
-def _sessions_since_progress(agg: list[dict], window: int = 3) -> tuple[int, object]:
+def _sessions_since_progress(agg: list[dict], window: int = STALL_WINDOW) -> tuple[int, object]:
     """Given a lift's per-session aggregates (oldest->newest), how many sessions since it last
     improved, and the date of that improvement.
 
@@ -61,25 +63,25 @@ def _sessions_since_progress(agg: list[dict], window: int = 3) -> tuple[int, obj
     return len(agg) - 1 - last_idx, agg[last_idx]["date"]
 
 
-def stalled_lifts(session: Session, recency_days: int = 28) -> list[dict]:
-    """Lifts still in rotation that haven't set a new best in STALL_MIN_SESSIONS+ sessions,
-    with how long they've been stuck and whether they're swap candidates. Most-stuck first."""
-    all_dates = [r.workout_start_time for r in session.exec(select(WorkoutSet)).all() if r.workout_start_time]
-    if not all_dates:
-        return []
-    latest = max(all_dates)
-
+def stalled_lifts(session: Session, progression_list: list[dict]) -> list[dict]:
+    """Lifts that are genuinely stagnating: the recent verdict already says holding/regressing
+    AND they haven't improved (volume or best set, recent-relative) in STALL_MIN_SESSIONS+ of
+    their own sessions. Gating on the verdict guarantees a lift that is actually progressing in
+    its current rep range is never called stalled. Most-stuck first."""
+    verdict_by = {p.get("exercise"): p for p in progression_list}
     out = []
     for ex in tracked_lifts(session, min_sessions=STALL_MIN_SESSIONS):
+        p = verdict_by.get(ex["exercise"])
+        if not p or p.get("verdict") not in ("holding", "regressing"):
+            continue  # progressing / not currently in rotation -> not a stagnation candidate
         agg = _session_aggregates(_lift_sets(session, ex["template_id"] or ex["exercise"]))
-        if len(agg) < STALL_MIN_SESSIONS or (latest - agg[-1]["date"]) > timedelta(days=recency_days):
-            continue
         since, last_progress = _sessions_since_progress(agg)
         if since < STALL_MIN_SESSIONS:
             continue
         out.append(
             {
                 "exercise": ex["exercise"],
+                "verdict": p.get("verdict"),
                 "sessions_stuck": since,
                 "weeks_stuck": max(0, (agg[-1]["date"] - last_progress).days // 7),
                 "last_progress": last_progress.date().isoformat(),
@@ -142,6 +144,6 @@ def training_state(
 ) -> dict:
     """Combined stagnation + deload picture for the coach."""
     return {
-        "stalled_lifts": stalled_lifts(session),
+        "stalled_lifts": stalled_lifts(session, progression_list),
         "deload": deload_readiness(session, progression_list, notes_themes),
     }

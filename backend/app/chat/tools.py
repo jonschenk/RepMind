@@ -218,7 +218,7 @@ def _get_training_state(session: Session, inp: dict) -> Any:
     prog = progression.progression_overview(session, get_settings().stall_lookback_sessions)
     # Chat path has no cheap access to mined note themes, so deload leans on the objective
     # signals (regressing lifts, volume drops, weeks since a lighter week).
-    return {"stalled_lifts": ts.stalled_lifts(session), "deload": ts.deload_readiness(session, prog, [])}
+    return {"stalled_lifts": ts.stalled_lifts(session, prog), "deload": ts.deload_readiness(session, prog, [])}
 
 
 def _search_exercises(session: Session, inp: dict) -> Any:
