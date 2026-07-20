@@ -12,7 +12,7 @@ import asyncio
 import json
 from collections import defaultdict
 from collections.abc import AsyncIterator
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 from sqlmodel import Session, select
@@ -97,6 +97,27 @@ _INSTRUCTIONS = """
 You are writing this user's weekly training review. Use the signals and their current
 routines below. (Analysis signals are in kilograms; the current routines are shown in the
 user's display unit - see the unit note.)
+
+YOUR JOB: make the call yourself. You are their coach, not a report generator and not a rule
+engine. Weigh EVERYTHING below together - bodyweight trajectory and what it implies about
+recovery, weekly volume vs landmarks, the balance of the whole split, every lift's trend, their
+own notes, and how long they have been training this way - then decide what will actually move
+their strength and physique forward over the next block. The goal is general, sustained
+progress, not fixing one lift. Do not tunnel on a single lift, a single metric, or the most
+recent session, and do not mechanically apply any rule below just because it fits: the rules
+describe HOW to express a decision, not what to decide. Prioritize ruthlessly - pick the two or
+three things that matter most this week and leave the rest alone. If the data does not justify
+changes, say so plainly: "keep executing, here is what to beat" is a legitimate and often
+correct answer, and inventing changes to look useful is a failure.
+
+`bodyweight` includes the trajectory: `direction`, `change_since_prior_weigh_in`, and
+`change_30d` / `change_90d` (null when no weigh-in exists that far back). Factor it into every
+judgment: someone LOSING weight has limited recovery and should expect flat-to-slow strength,
+so holding loads and protecting hard sets is a win, not a stall - never call that failure.
+Someone GAINING has room to push loads harder. Weight moving fast either way changes what is
+realistic, so say so when it explains what you are seeing. If `logging_sparse` is true or
+`direction` is unknown, their weigh-ins are too far apart to draw conclusions from: do NOT
+invent a trend, just note that consistent weigh-ins would let you factor it in properly.
 
 How to read the data (important): this user trains mostly hypertrophy - only ~14% of their
 sets are heavy (see `training_mix`), so DO NOT judge progress by estimated 1RM alone. The
@@ -264,21 +285,79 @@ async def _generate_llm(settings, signals: dict, routines: list[dict], unit: str
 
 
 def _bodyweight_signal(session: Session) -> Optional[dict]:
-    """Latest bodyweight/fat% + relative strength from the synced measurements, with a
-    stale flag so the coach knows when the reading is old."""
+    """Latest bodyweight/fat% + relative strength, PLUS the trajectory (direction and rate).
+
+    The trajectory matters as much as the number: a lifter losing weight has less recovery and
+    should expect flat-to-slow strength, so a plateau there is context, not failure. Only the
+    latest reading used to be passed, which left the coach blind to that."""
     bs = body.body_stats(session)
     if not bs.get("has_data"):
         return None
     latest = bs["latest"]
-    return {
+    LB = 2.2046
+    out = {
         "latest_kg": latest["weight_kg"],
-        "latest_lb": round(latest["weight_kg"] * 2.2046, 1),
+        "latest_lb": round(latest["weight_kg"] * LB, 1),
         "fat_percent": latest["fat_percent"],
         "as_of": latest["date"],
         "days_since": bs["days_since"],
         "stale": bs["stale"],
         "relative_strength": bs["relative_strength"],
     }
+
+    pts = []
+    for t in bs.get("trend") or []:
+        try:
+            pts.append((date.fromisoformat(t["date"]), t["weight_kg"], t.get("fat_percent")))
+        except (ValueError, TypeError, KeyError):
+            continue
+    pts = [p for p in pts if p[1]]
+    if len(pts) >= 2:
+        last_d, last_w, _ = pts[-1]
+
+        def _change_from(d0, w0) -> dict:
+            span_days = (last_d - d0).days or 1
+            delta_lb = (last_w - w0) * LB
+            return {
+                "from_lb": round(w0 * LB, 1),
+                "to_lb": round(last_w * LB, 1),
+                "change_lb": round(delta_lb, 1),
+                "rate_lb_per_week": round(delta_lb / (span_days / 7), 2),
+                "over_days": span_days,
+                "since": d0.isoformat(),
+            }
+
+        def _change_over(days: int) -> Optional[dict]:
+            """Change over ~`days`, but ONLY when a weigh-in actually exists near that far
+            back. Weigh-ins here are irregular (sometimes a year apart), and reporting a
+            336-day gap as a '30 day change' would be a confidently wrong number."""
+            cutoff = last_d - timedelta(days=days)
+            prior = [p for p in pts if p[0] <= cutoff]
+            if not prior:
+                return None
+            d0, w0, _f = prior[-1]
+            span = (last_d - d0).days
+            if not (days * 0.5 <= span <= days * 2):
+                return None  # nearest data point is too far off to call it this window
+            return _change_from(d0, w0)
+
+        out["change_since_prior_weigh_in"] = _change_from(pts[-2][0], pts[-2][1])
+        out["change_30d"] = _change_over(30)
+        out["change_90d"] = _change_over(90)
+        # Recent weigh-ins so the coach can see the actual shape and cadence of the data.
+        out["recent_weigh_ins"] = [
+            {"date": d.isoformat(), "lb": round(w * LB, 1)} for d, w, _f in pts[-6:]
+        ]
+        # Irregular logging means bodyweight can't carry much weight in the reasoning.
+        span_recent = (pts[-1][0] - pts[-2][0]).days
+        out["logging_sparse"] = span_recent > 45
+        ref = out["change_30d"] or out["change_90d"] or out["change_since_prior_weigh_in"]
+        if ref and ref["over_days"] <= 120:
+            ch = ref["change_lb"]
+            out["direction"] = "losing" if ch <= -1 else "gaining" if ch >= 1 else "stable"
+        else:
+            out["direction"] = "unknown (weigh-ins too far apart)"
+    return out
 
 
 def _recent_performance(
