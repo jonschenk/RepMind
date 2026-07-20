@@ -8,7 +8,9 @@ kind=create -> POST new). Nothing is pushed to Hevy here."""
 
 from __future__ import annotations
 
+import asyncio
 import json
+from collections.abc import AsyncIterator
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -236,11 +238,25 @@ def _current_routines(routines_raw: list[dict], unit: str) -> list[dict]:
     return out
 
 
-async def generate_weekly_review(session: Session, client: HevyClient) -> dict:
+# Rotating messages shown during the single long LLM call, so a ~2 minute generation gives
+# continuous feedback instead of a frozen spinner.
+_DRAFT_HEARTBEATS = (
+    "Weighing progression across your lifts",
+    "Balancing weekly volume by muscle",
+    "Writing it up in plain language",
+    "Finalizing proposed routine changes",
+)
+
+
+async def stream_weekly_review(session: Session, client: HevyClient) -> AsyncIterator[dict]:
+    """Generate the weekly review, yielding progress events as it goes:
+    {"type": "step", "message": ...} for each phase, then {"type": "done", "review": {...}}.
+    The heavy LLM call emits heartbeat steps while it runs so the UI keeps moving."""
     settings = get_settings()
     end = datetime.utcnow()
     start = end - timedelta(days=settings.weekly_review_days)
 
+    yield {"type": "step", "message": "Reading your training week"}
     training_days = len(
         {
             w.start_time.date()
@@ -248,7 +264,11 @@ async def generate_weekly_review(session: Session, client: HevyClient) -> dict:
             if w.start_time and start <= w.start_time <= end
         }
     )
+
+    yield {"type": "step", "message": "Mining your workout notes"}
     notes = await extract_note_themes(session, start, end)
+
+    yield {"type": "step", "message": "Crunching volume, progression, and PRs"}
     signals = {
         "period": {"start": start.isoformat(), "end": end.isoformat()},
         "training_days": training_days,
@@ -264,11 +284,19 @@ async def generate_weekly_review(session: Session, client: HevyClient) -> dict:
         "routine_changes": recent_changes(session, since=start),
     }
 
+    yield {"type": "step", "message": "Pulling your current routines"}
     weight_unit = get_preferences(session)["weight_unit"]
     routines = _current_routines(await client.get_routines(), weight_unit)
 
+    yield {"type": "step", "message": "Drafting your review and proposing updates"}
     if settings.anthropic_configured:
-        review = await _generate_llm(settings, signals, routines, weight_unit)
+        llm_task = asyncio.create_task(_generate_llm(settings, signals, routines, weight_unit))
+        for hb in _DRAFT_HEARTBEATS:
+            done, _ = await asyncio.wait({llm_task}, timeout=12)
+            if done:
+                break
+            yield {"type": "step", "message": hb}
+        review = await llm_task
     else:
         review = _fallback(signals)
 
@@ -314,11 +342,23 @@ async def generate_weekly_review(session: Session, client: HevyClient) -> dict:
     session.commit()
     session.refresh(wr)
 
-    return {
-        "id": wr.id,
-        "generated_at": wr.generated_at.isoformat(),
-        "period": signals["period"],
-        "narrative": narrative,
-        "signals": signals,
-        "proposals": proposals,
+    yield {
+        "type": "done",
+        "review": {
+            "id": wr.id,
+            "generated_at": wr.generated_at.isoformat(),
+            "period": signals["period"],
+            "narrative": narrative,
+            "signals": signals,
+            "proposals": proposals,
+        },
     }
+
+
+async def generate_weekly_review(session: Session, client: HevyClient) -> dict:
+    """Non-streaming path (auto-review / cron): drain the generator, return the final review."""
+    result: dict = {}
+    async for ev in stream_weekly_review(session, client):
+        if ev.get("type") == "done":
+            result = ev["review"]
+    return result

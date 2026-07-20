@@ -1,7 +1,10 @@
+import json
+
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
 
-from app.coach.weekly_review import generate_weekly_review
+from app.coach.weekly_review import generate_weekly_review, stream_weekly_review
 from app.db import get_session
 from app.deps import hevy_client_dep
 from app.hevy import HevyClient
@@ -55,3 +58,25 @@ async def generate(
     client: HevyClient = Depends(hevy_client_dep),
 ):
     return await generate_weekly_review(session, client)
+
+
+@router.post("/generate/stream")
+async def generate_stream(
+    session: Session = Depends(get_session),
+    client: HevyClient = Depends(hevy_client_dep),
+):
+    """Stream generation progress as SSE: `step` events per phase (incl. heartbeats during the
+    long draft), then a `done` event, so the UI shows live progress instead of a frozen wait."""
+
+    async def event_source():
+        try:
+            async for ev in stream_weekly_review(session, client):
+                yield f"data: {json.dumps(ev, default=str)}\n\n"
+        except Exception as exc:  # noqa: BLE001 - surface to the client instead of hanging
+            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+
+    return StreamingResponse(
+        event_source(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

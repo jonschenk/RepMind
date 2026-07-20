@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, Proposal, WeeklyProposal, WeeklyReviewData } from "../api";
+import { api, generateWeeklyStream, Proposal, WeeklyProposal, WeeklyReviewData } from "../api";
 import { RoutinePreviewCard } from "../components/RoutinePreviewCard";
 import { renderLite } from "../renderLite";
 import { fmtWeight, round1, toUnit, useUnit } from "../units";
@@ -63,6 +63,7 @@ export function WeeklyReview({ anthropicReady }: { anthropicReady: boolean }) {
   const { unit } = useUnit();
   const [data, setData] = useState<WeeklyReviewData | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [steps, setSteps] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<number>>(new Set());
 
@@ -80,9 +81,13 @@ export function WeeklyReview({ anthropicReady }: { anthropicReady: boolean }) {
   async function generate() {
     setGenerating(true);
     setError(null);
+    setSteps([]);
     try {
-      await api.generateWeekly();
-      await load();
+      await generateWeeklyStream((ev) => {
+        if (ev.type === "step") setSteps((prev) => [...prev, ev.message]);
+        else if (ev.type === "error") setError(ev.message);
+      });
+      await load(); // pull the freshly generated review (assembled shape with proposals)
     } catch (e: any) {
       setError(String(e.message ?? e));
     } finally {
@@ -119,9 +124,22 @@ export function WeeklyReview({ anthropicReady }: { anthropicReady: boolean }) {
         </div>
       )}
 
-      {generating && <div className="muted">Analyzing your week and drafting updates…</div>}
+      {generating && (
+        <div className="panel">
+          <div className="name" style={{ marginBottom: 10 }}>Building your weekly review…</div>
+          {steps.map((m, i) => {
+            const last = i === steps.length - 1;
+            return (
+              <div key={i} className="gen-step">
+                <span className={`gen-dot ${last ? "active" : "done"}`} />
+                <span className={last ? "" : "muted"}>{m}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-      {data?.exists && (
+      {data?.exists && !generating && (
         <>
           <div className="panel">
             <div className="summary">{renderLite(data.narrative ?? "")}</div>

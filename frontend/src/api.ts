@@ -234,3 +234,38 @@ export async function streamChat(
     }
   }
 }
+
+export type WeeklyGenEvent =
+  | { type: "step"; message: string }
+  | { type: "done"; review?: unknown }
+  | { type: "error"; message: string };
+
+// Stream weekly-review generation via SSE, invoking onEvent for each progress event so the UI
+// can show live step feedback instead of a frozen spinner.
+export async function generateWeeklyStream(
+  onEvent: (e: WeeklyGenEvent) => void,
+): Promise<void> {
+  const res = await fetch("/api/weekly/generate/stream", { method: "POST" });
+  if (!res.ok || !res.body) throw new Error(`weekly generate failed: ${res.status}`);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split("\n\n");
+    buffer = chunks.pop() ?? "";
+    for (const chunk of chunks) {
+      const line = chunk.trim();
+      if (!line.startsWith("data:")) continue;
+      try {
+        onEvent(JSON.parse(line.slice(5).trim()) as WeeklyGenEvent);
+      } catch {
+        // ignore malformed keepalive lines
+      }
+    }
+  }
+}
