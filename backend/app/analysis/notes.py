@@ -85,15 +85,20 @@ async def extract_note_themes(session: Session, start: datetime, end: datetime) 
         "quote their words, and add a one-line interpretation.\n\n"
         f"NOTES:\n{json.dumps(raw, indent=2)}"
     )
-    resp = await client.messages.create(
+    # Stream with a generous cap: adaptive thinking can spend the whole budget reasoning
+    # before emitting the JSON, so at max_tokens=1500 the turn hit the cap with truncated
+    # output and note themes came back empty. Streaming keeps a high cap safe.
+    async with client.messages.stream(
         model=settings.anthropic_model,
-        max_tokens=1500,
+        max_tokens=8000,
         thinking={"type": "adaptive"},
         output_config={"format": {"type": "json_schema", "schema": _THEME_SCHEMA}},
         system=f"You extract signal from a lifter's training notes. {NO_DASH_RULE}",
         messages=[{"role": "user", "content": user_msg}],
-    )
-    record_usage("notes", settings.anthropic_model, resp.usage.input_tokens, resp.usage.output_tokens)
+    ) as stream:
+        resp = await stream.get_final_message()
+    if resp.usage:
+        record_usage("notes", settings.anthropic_model, resp.usage.input_tokens or 0, resp.usage.output_tokens or 0)
     text = next((b.text for b in resp.content if b.type == "text"), "{}")
     try:
         data = json.loads(text)

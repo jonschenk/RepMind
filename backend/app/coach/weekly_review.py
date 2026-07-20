@@ -168,15 +168,23 @@ async def _generate_llm(settings, signals: dict, routines: list[dict], unit: str
         f"{_INSTRUCTIONS}\n\n{unit_note}\n\nSIGNALS:\n{json.dumps(signals, indent=2, default=str)}"
         f"\n\nCURRENT ROUTINES:\n{json.dumps(routines, indent=2, default=str)}"
     )
-    resp = await client.messages.create(
+    # Stream with a generous cap. Adaptive thinking over the full week of signals + every
+    # current routine spends a lot of output budget reasoning BEFORE it emits any JSON. At
+    # max_tokens=8000 the think phase alone exhausted the budget, so the turn ended on
+    # stop_reason="max_tokens" with truncated/empty JSON, json.loads failed, and the review
+    # came back blank. Streaming makes a high cap safe (no request timeout) and we only pay
+    # for tokens produced. Mirrors the chat agent's fix.
+    async with client.messages.stream(
         model=settings.anthropic_model,
-        max_tokens=8000,
+        max_tokens=24000,
         thinking={"type": "adaptive"},
         output_config={"format": {"type": "json_schema", "schema": _REVIEW_SCHEMA}},
         system=f"{load_coach_context()}\n\n{NO_DASH_RULE}",
         messages=[{"role": "user", "content": user_msg}],
-    )
-    record_usage("weekly", settings.anthropic_model, resp.usage.input_tokens, resp.usage.output_tokens)
+    ) as stream:
+        resp = await stream.get_final_message()
+    if resp.usage:
+        record_usage("weekly", settings.anthropic_model, resp.usage.input_tokens or 0, resp.usage.output_tokens or 0)
     text = next((b.text for b in resp.content if b.type == "text"), "{}")
     try:
         return json.loads(text)
