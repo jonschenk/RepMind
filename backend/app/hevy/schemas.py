@@ -27,10 +27,9 @@ def sanitize_notes(notes: Optional[str]) -> Optional[str]:
 class ResolvedSet(BaseModel):
     type: str = "normal"  # normal | warmup | failure | dropset
     weight_kg: Optional[float] = None
-    # `reps` is the BOTTOM of the prescribed range (the floor to hit). `rep_max` is the top,
-    # and is repMind-only: the Hevy routine API takes a single integer per set, so
-    # build_routine_body deliberately whitelists fields and never sends rep_max. The full
-    # range still reaches the Hevy app via the exercise note.
+    # `reps` is the BOTTOM of the prescribed range (or the single target when rep_max is
+    # unset); `rep_max` is the top. Hevy stores this as `rep_range` {start, end} with `reps`
+    # null, so build_routine_body translates the pair into Hevy's native shape.
     reps: Optional[int] = None
     rep_max: Optional[int] = None
     custom_metric: Optional[float] = None
@@ -70,7 +69,12 @@ def build_routine_body(routine: ResolvedRoutine, is_update: bool = False) -> dic
             set_body: dict = {"type": s.type}
             if s.weight_kg is not None:
                 set_body["weight_kg"] = s.weight_kg
-            if s.reps is not None:
+            # Hevy models rep ranges natively: a set carries EITHER `reps` (single target) or
+            # `rep_range` {start, end} with `reps` null. Send a real range when we have one so
+            # the Hevy app shows "8-12", not just the floor.
+            if s.reps is not None and s.rep_max is not None and s.rep_max > s.reps:
+                set_body["rep_range"] = {"start": s.reps, "end": s.rep_max}
+            elif s.reps is not None:
                 set_body["reps"] = s.reps
             if s.custom_metric is not None:
                 set_body["custom_metric"] = s.custom_metric

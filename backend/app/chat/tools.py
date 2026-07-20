@@ -285,6 +285,19 @@ async def _list_routines(client: HevyClient) -> Any:
     ]
 
 
+def _routine_set_view(s: dict, unit: str) -> dict:
+    """Hevy stores a rep range as `rep_range` {start, end} with `reps` null; flatten it back to
+    reps + rep_max so a ranged set doesn't read as having no reps."""
+    out = {"type": s.get("type"), "weight": to_display(s.get("weight_kg"), unit)}
+    rr = s.get("rep_range") or {}
+    if rr.get("start") is not None:
+        out["reps"] = rr.get("start")
+        out["rep_max"] = rr.get("end")
+    else:
+        out["reps"] = s.get("reps")
+    return out
+
+
 async def _get_routine(client: HevyClient, session: Session, inp: dict) -> Any:
     """Full current contents of one routine (by id or name), weights in the user's display
     unit. Use before editing so the update reflects the real routine, not a guess."""
@@ -309,10 +322,7 @@ async def _get_routine(client: HevyClient, session: Session, inp: dict) -> Any:
                 "name": ex.get("title"),
                 "rest_seconds": ex.get("rest_seconds"),
                 "notes": ex.get("notes"),
-                "sets": [
-                    {"type": s.get("type"), "weight": to_display(s.get("weight_kg"), unit), "reps": s.get("reps")}
-                    for s in ex.get("sets", [])
-                ],
+                "sets": [_routine_set_view(s, unit) for s in ex.get("sets", [])],
             }
             for ex in match.get("exercises", [])
         ],

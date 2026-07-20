@@ -324,6 +324,20 @@ def _recent_performance(
     return out
 
 
+def _routine_set_view(s: dict, unit: str) -> dict:
+    """One routine set as the coach should read it. Hevy stores a rep range as
+    `rep_range` {start, end} with `reps` null, so flatten that back into reps + rep_max -
+    otherwise every ranged set looks like it has no reps at all."""
+    out = {"type": s.get("type"), "weight": to_display(s.get("weight_kg"), unit)}
+    rr = s.get("rep_range") or {}
+    if rr.get("start") is not None:
+        out["reps"] = rr.get("start")
+        out["rep_max"] = rr.get("end")
+    else:
+        out["reps"] = s.get("reps")
+    return out
+
+
 def _current_routines(routines_raw: list[dict], unit: str) -> list[dict]:
     """Current Hevy routines with set weights converted to the user's display unit, so the
     model reasons and proposes in one consistent unit."""
@@ -338,10 +352,7 @@ def _current_routines(routines_raw: list[dict], unit: str) -> list[dict]:
                         "title": ex.get("title"),
                         "exercise_template_id": ex.get("exercise_template_id"),
                         "notes": ex.get("notes"),
-                        "sets": [
-                            {"type": s.get("type"), "weight": to_display(s.get("weight_kg"), unit), "reps": s.get("reps")}
-                            for s in ex.get("sets", [])
-                        ],
+                        "sets": [_routine_set_view(s, unit) for s in ex.get("sets", [])],
                     }
                     for ex in r.get("exercises", [])
                 ],
