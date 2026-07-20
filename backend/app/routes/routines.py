@@ -122,6 +122,9 @@ async def approve_proposal(
                 type=s.get("type", "normal"),
                 weight_kg=s.get("weight_kg"),
                 reps=s.get("reps"),
+                # Carried for a faithful stored record; build_routine_body never sends it,
+                # since a Hevy routine set takes a single rep number.
+                rep_max=s.get("rep_max"),
             )
             for s in ex.get("sets", [])
         ]

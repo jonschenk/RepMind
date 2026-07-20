@@ -27,7 +27,12 @@ def sanitize_notes(notes: Optional[str]) -> Optional[str]:
 class ResolvedSet(BaseModel):
     type: str = "normal"  # normal | warmup | failure | dropset
     weight_kg: Optional[float] = None
+    # `reps` is the BOTTOM of the prescribed range (the floor to hit). `rep_max` is the top,
+    # and is repMind-only: the Hevy routine API takes a single integer per set, so
+    # build_routine_body deliberately whitelists fields and never sends rep_max. The full
+    # range still reaches the Hevy app via the exercise note.
     reps: Optional[int] = None
+    rep_max: Optional[int] = None
     custom_metric: Optional[float] = None
 
 

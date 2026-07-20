@@ -77,7 +77,10 @@ export interface TrendResponse {
 export interface ProposedSet {
   type: string;
   weight_kg?: number;
+  /** Bottom of the prescribed rep range (or the single target when rep_max is unset). */
   reps?: number;
+  /** Top of the rep range. repMind-only: a Hevy routine shows a single number per set. */
+  rep_max?: number;
 }
 export interface ProposedExercise {
   name: string;

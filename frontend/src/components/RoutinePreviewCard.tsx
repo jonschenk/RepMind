@@ -52,7 +52,12 @@ export function RoutinePreviewCard({
       name: e.name,
       rest_seconds: e.rest_seconds,
       notes: noDash(e.notes ?? ""),
-      sets: e.sets.map((s) => ({ type: s.type ?? "normal", weight_kg: s.weight_kg, reps: s.reps })),
+      sets: e.sets.map((s) => ({
+        type: s.type ?? "normal",
+        weight_kg: s.weight_kg,
+        reps: s.reps,
+        rep_max: s.rep_max,
+      })),
     })),
   );
 
@@ -67,7 +72,12 @@ export function RoutinePreviewCard({
         name: e.name,
         rest_seconds: e.rest_seconds,
         notes: e.notes.trim() || undefined,
-        sets: e.sets.map((s) => ({ type: s.type, weight_kg: s.weight_kg, reps: s.reps })),
+        sets: e.sets.map((s) => ({
+          type: s.type,
+          weight_kg: s.weight_kg,
+          reps: s.reps,
+          rep_max: s.rep_max,
+        })),
       })),
     };
   }
@@ -242,14 +252,29 @@ export function RoutinePreviewCard({
                   </td>
                   <td>
                     {editable ? (
-                      <input
-                        className="set-input reps"
-                        type="number"
-                        step="1"
-                        value={s.reps ?? ""}
-                        placeholder="-"
-                        onChange={(e) => updateSet(i, j, { reps: intOrUndef(e.target.value) })}
-                      />
+                      <span className="rep-range">
+                        <input
+                          className="set-input reps"
+                          type="number"
+                          step="1"
+                          value={s.reps ?? ""}
+                          placeholder="-"
+                          title="Reps (bottom of the range)"
+                          onChange={(e) => updateSet(i, j, { reps: intOrUndef(e.target.value) })}
+                        />
+                        <span className="rep-dash">-</span>
+                        <input
+                          className="set-input reps"
+                          type="number"
+                          step="1"
+                          value={s.rep_max ?? ""}
+                          placeholder="top"
+                          title="Top of the rep range (leave blank for a single target)"
+                          onChange={(e) => updateSet(i, j, { rep_max: intOrUndef(e.target.value) })}
+                        />
+                      </span>
+                    ) : s.reps != null && s.rep_max != null && s.rep_max !== s.reps ? (
+                      `${s.reps}-${s.rep_max}`
                     ) : (
                       s.reps ?? "-"
                     )}

@@ -182,7 +182,14 @@ PROPOSE_ROUTINE_TOOL: dict = {
                                         "type": "number",
                                         "description": "Target weight in the user's display unit (lb unless stated otherwise). Round to real gym numbers.",
                                     },
-                                    "reps": {"type": "integer"},
+                                    "reps": {
+                                        "type": "integer",
+                                        "description": "For hypertrophy work this is the BOTTOM of the rep range (pair it with rep_max). For a straight single target (heavy single/double/triple, warmup), just this.",
+                                    },
+                                    "rep_max": {
+                                        "type": "integer",
+                                        "description": "Top of the rep range, usually 2-4 above reps (e.g. reps 10 + rep_max 12 = 10-12). Omit for a single rep target.",
+                                    },
                                 },
                                 "required": ["type"],
                             },

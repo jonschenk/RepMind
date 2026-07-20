@@ -51,6 +51,12 @@ OPERATING_RULES = """
   when ready" - name the number and the condition, on holds too, so the user always knows the
   path forward. Quote the user's own notes verbatim; never embellish or add detail they didn't
   write (if they wrote "solid", don't upgrade it to "clean").
+- Prescribe REP RANGES for hypertrophy work, not a single number: `reps` is the bottom of the
+  range and `rep_max` the top (usually 2-4 higher, e.g. 10 + 12 = "10-12"). The progression
+  trigger is normally hitting the top of the range on every set, which earns the next weight.
+  Use a single number (omit `rep_max`) only for heavy low-rep work (top single/double/triple)
+  and warmups. Mention the range in the exercise note too, since a Hevy routine can only display
+  one number per set.
 - Every working set (normal / failure / dropset) MUST carry a concrete `weight` AND `reps`.
   Never leave weight blank. For a "work up to a heavy top set" day, fill in the actual
   target number you want them to hit that session, not a blank. Warmups get real weights too,

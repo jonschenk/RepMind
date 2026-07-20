@@ -40,9 +40,12 @@ _SET = {
         # In the user's DISPLAY unit (see instructions), converted to kg server-side. null
         # only for genuinely bodyweight movements.
         "weight": {"type": ["number", "null"]},
+        # Prescribe a RANGE for hypertrophy work: `reps` is the bottom (the floor to hit),
+        # `rep_max` the top. Use rep_max: null for straight-number work (heavy singles/triples).
         "reps": {"type": ["integer", "null"]},
+        "rep_max": {"type": ["integer", "null"], "description": "Top of the rep range; null for a single target."},
     },
-    "required": ["type", "weight", "reps"],
+    "required": ["type", "weight", "reps", "rep_max"],
     "additionalProperties": False,
 }
 _EXERCISE = {
@@ -169,6 +172,15 @@ Write:
 
    When you cite the user's own notes, quote them VERBATIM - never embellish, add adjectives, or
    infer detail they didn't write (if they wrote "solid", do not upgrade it to "moved clean").
+
+   PRESCRIBE REP RANGES, not a single number, for hypertrophy work. `reps` is the BOTTOM of the
+   range (the floor they must hit) and `rep_max` is the TOP (usually 2-4 reps higher, e.g. 8-10,
+   10-12, 12-15). The range and the progression trigger go together: the trigger is normally
+   hitting the TOP of the range on every set, which then earns the next weight ("12/12/12 at 155,
+   then 165"). Use a single number (`rep_max`: null) only where a range genuinely doesn't apply:
+   heavy low-rep work like a top single, double, or triple. Warmups can be single numbers too.
+   State the range in the exercise `notes` as well (e.g. "3 x 10-12"), because the Hevy routine
+   itself can only show one number per set.
 
    Each set's `weight` is in the user's DISPLAY unit (stated below), NOT kilograms - the app
    converts it. The current routines below are already shown in that unit, so keep the same
