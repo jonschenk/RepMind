@@ -35,23 +35,27 @@ SWAP_MIN_SESSIONS = 9
 DELOAD_WEEKS_THRESHOLD = 7
 
 
-def _sessions_since_progress(agg: list[dict]) -> tuple[int, object]:
+def _sessions_since_progress(agg: list[dict], window: int = 3) -> tuple[int, object]:
     """Given a lift's per-session aggregates (oldest->newest), how many sessions since it last
-    set a new running-best on ANY axis, and the date of that last real improvement."""
-    best_e = best_v = 0.0
-    best_wt = best_reps = 0
+    improved, and the date of that improvement.
+
+    Progress is RECENT-RELATIVE, not all-time: a session counts as an improvement if it beats
+    the best of the previous `window` sessions on volume-load OR best set (more weight, or same
+    weight for more reps). This is deliberate - an all-time measure treats a lift that's still
+    climbing in its current rep range as "stuck" just because it set a higher estimated 1RM
+    during an old strength phase. est-1RM is intentionally ignored here for the same reason."""
     last_idx = 0
-    for i, a in enumerate(agg):
-        improved = False
-        if a["e1rm"] and a["e1rm"] > best_e * 1.005:
-            best_e = a["e1rm"]
-            improved = True
-        if a["volume"] > best_v * 1.02:
-            best_v = a["volume"]
-            improved = True
-        if a["best_weight"] > best_wt or (a["best_weight"] == best_wt and a["best_reps"] > best_reps):
-            best_wt, best_reps = a["best_weight"], a["best_reps"]
-            improved = True
+    for i in range(1, len(agg)):
+        prior = agg[max(0, i - window):i]
+        pv = max((a["volume"] for a in prior), default=0.0)
+        pbw = max((a["best_weight"] for a in prior), default=0.0)
+        pbr = max((a["best_reps"] for a in prior if a["best_weight"] == pbw), default=0)
+        a = agg[i]
+        improved = (
+            a["volume"] > pv * 1.02
+            or a["best_weight"] > pbw
+            or (a["best_weight"] == pbw and a["best_reps"] > pbr)
+        )
         if improved:
             last_idx = i
     return len(agg) - 1 - last_idx, agg[last_idx]["date"]
