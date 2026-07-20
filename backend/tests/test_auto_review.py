@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
 
-from app.coach.auto_review import cycle_reason
+from app.coach.auto_review import _completion_anchor, cycle_reason
 from app.models import Workout
 
 NOW = datetime(2026, 7, 12, 12, 0)
@@ -74,3 +74,26 @@ def test_freestyle_workout_no_routine_waits(session):
     _log(session, None, 0, "w1")  # no routine_id -> can't determine split
     session.commit()
     assert cycle_reason(session, ROUTINES, SINCE, NOW) is None
+
+
+def test_completion_anchor_excludes_next_rotation(session):
+    """When a fire is delayed (e.g. by the FLOOR) until after the next rotation has started,
+    the anchor must land on the rotation's completion, not the latest workout, so the
+    next-rotation day already logged is not orphaned from the next cycle."""
+    since = NOW - timedelta(days=8)
+    _log(session, "push", 6, "w1")  # rotation: first push
+    _log(session, "pull", 5, "w2")
+    _log(session, "legs", 4, "w3")  # rotation COMPLETES here (4 days ago)
+    _log(session, "push", 1, "w4")  # next rotation's push already logged (most recent)
+    session.commit()
+
+    assert cycle_reason(session, ROUTINES, since, NOW) == "cycle-complete"
+    anchor = _completion_anchor(session, ROUTINES, since, NOW, "cycle-complete")
+    assert anchor == NOW - timedelta(days=4)  # 'legs' completion, not w4 (1 day ago)
+
+
+def test_completion_anchor_ceiling_resets_to_now(session):
+    since = NOW - timedelta(days=12)
+    _log(session, "push", 1, "w1")
+    session.commit()
+    assert _completion_anchor(session, ROUTINES, since, NOW, "ceiling") == NOW
