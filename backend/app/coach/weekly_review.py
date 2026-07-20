@@ -20,6 +20,7 @@ from sqlmodel import Session, select
 from app.analysis import body, progression, prs, volume
 from app.analysis.changes import recent_changes
 from app.analysis.notes import extract_note_themes
+from app.analysis.training_state import training_state
 from app.analysis.trends import WORKING_SET_TYPES
 from app.chat.prompt import NO_DASH_RULE, load_coach_context
 from app.config import get_settings
@@ -107,6 +108,23 @@ sets (weight x reps, sometimes rpe and a note) the user logged in their most rec
 Every weight and rep you prescribe MUST come from what they actually did here, progressed
 sensibly - NOT copied from the current routine. Read their per-set note too (it often explains
 a weight they changed mid-session).
+
+`training_state` is the LONG VIEW that per-lift verdicts miss. `stalled_lifts` are lifts that
+have set no new best on any axis for many of their own sessions (`sessions_stuck`,
+`weeks_stuck`); a `swap_candidate` has been stuck long enough that another small nudge won't
+help. `deload` aggregates systemic fatigue (`regressing_lifts`, `fatigue_notes`,
+`weeks_since_lighter_week`) into a `recommend_deload` flag with `reasons`. Act on it:
+- Name genuinely STAGNATING lifts in the narrative. For a normal stall, change the STIMULUS
+  (new rep scheme, an intensity technique like a drop set or double, add a hard set), not just
+  the weight. For a `swap_candidate`, propose swapping the movement for a close variation
+  (kind=update that replaces it) and say why (stale stimulus for N weeks, not what they were
+  doing wrong).
+- If `deload.recommend_deload` is true, or the indicators clearly pile up, say so plainly and,
+  if warranted, propose a lighter deload week (cut working sets ~40-50% or top loads ~10%),
+  citing the `reasons`. Never recommend a deload with no basis.
+- JUDGMENT: a lift the user is holding on purpose (a note or `routine_changes` shows they
+  approve the current scheme, e.g. a heavy top single they signed off on) is "stalled" by the
+  numbers but is NOT a problem - respect it, do not force a swap or a change on it.
 
 Write:
 1. `narrative`: a direct, coach-voiced markdown review of the past week. Lead with what's
@@ -367,6 +385,9 @@ async def stream_weekly_review(session: Session, client: HevyClient) -> AsyncIte
         # the user going off-program.
         "routine_changes": recent_changes(session, since=start),
     }
+    # Long-horizon judgments: which lifts are truly stagnating / swap candidates, and whether
+    # the systemic picture warrants a deload. Derived from the per-lift verdicts + notes above.
+    signals["training_state"] = training_state(session, signals["progression"], signals["notes"])
 
     yield {"type": "step", "message": "Pulling your current routines and recent sessions"}
     routines_raw = await client.get_routines()

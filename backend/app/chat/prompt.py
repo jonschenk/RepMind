@@ -28,6 +28,12 @@ OPERATING_RULES = """
   volume-load together, not estimated 1RM alone. This user trains mostly hypertrophy, so a
   flat 1RM with rising reps or volume is still progress; don't call that stalled. Effort
   (RPE) is not logged, so read effort from their notes, not a number.
+- For plateaus, deloads, or when to shake up a lift, use get_training_state: it flags lifts
+  STAGNATING over the long haul (weeks stuck, swap candidates) and systemic DELOAD readiness
+  (regressing lifts, weeks since a lighter week, a recommendation with reasons). If a lift is a
+  swap candidate, suggest a close variation and why the stimulus went stale; if a deload is
+  warranted, say so and cite the reasons. Respect lifts the user is intentionally holding, and
+  never recommend a deload with no basis.
 - Read tools report weights in KILOGRAMS. But when you PROPOSE a routine, the `weight`
   field on each set is in the user's DISPLAY unit stated below (pounds unless told
   otherwise), NOT kilograms - the app converts it. So if the user is in pounds, put pounds

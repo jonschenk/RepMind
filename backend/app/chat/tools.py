@@ -12,6 +12,7 @@ from typing import Any
 from sqlmodel import Session, select
 
 from app.analysis import progression, trends
+from app.analysis import training_state as ts
 from app.config import get_settings
 from app.hevy import HevyClient
 from app.hevy.resolve import search_templates
@@ -44,6 +45,17 @@ READ_TOOLS: list[dict] = [
             "properties": {"exercise": {"type": "string"}},
             "required": ["exercise"],
         },
+    },
+    {
+        "name": "get_training_state",
+        "description": (
+            "The long-horizon picture the per-lift verdict misses: which lifts are STAGNATING "
+            "(no new best for many of their own sessions, with weeks_stuck and whether they're a "
+            "swap_candidate), plus systemic DELOAD readiness (how many lifts are regressing, "
+            "weeks since a clearly lighter week, and a recommend_deload flag with reasons). Use "
+            "this for questions about plateaus, whether it's time to deload, or when to swap a lift."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "get_exercise_trend",
@@ -202,6 +214,13 @@ def _get_lift_progression(session: Session, inp: dict) -> Any:
     return progression.lift_progression(session, inp["exercise"])
 
 
+def _get_training_state(session: Session, inp: dict) -> Any:
+    prog = progression.progression_overview(session, get_settings().stall_lookback_sessions)
+    # Chat path has no cheap access to mined note themes, so deload leans on the objective
+    # signals (regressing lifts, volume drops, weeks since a lighter week).
+    return {"stalled_lifts": ts.stalled_lifts(session), "deload": ts.deload_readiness(session, prog, [])}
+
+
 def _search_exercises(session: Session, inp: dict) -> Any:
     matches = search_templates(session, inp["query"], limit=int(inp.get("limit", 10)))
     return [
@@ -306,6 +325,8 @@ async def execute_read_tool(
             result = _get_progression(session, inp)
         elif name == "get_lift_progression":
             result = _get_lift_progression(session, inp)
+        elif name == "get_training_state":
+            result = _get_training_state(session, inp)
         elif name == "search_exercises":
             result = _search_exercises(session, inp)
         elif name == "list_routines":
