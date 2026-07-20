@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections import defaultdict
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta
 from typing import Optional
@@ -19,13 +20,14 @@ from sqlmodel import Session, select
 from app.analysis import body, progression, prs, volume
 from app.analysis.changes import recent_changes
 from app.analysis.notes import extract_note_themes
+from app.analysis.trends import WORKING_SET_TYPES
 from app.chat.prompt import NO_DASH_RULE, load_coach_context
 from app.config import get_settings
 from app.hevy import HevyClient
 from app.hevy.schemas import strip_dashes
 from app.llm import get_async_anthropic
 from app.state import get_preferences
-from app.models import RoutineProposal, WeeklyReview, Workout
+from app.models import RoutineProposal, WeeklyReview, Workout, WorkoutSet
 from app.units import routine_weights_to_kg, to_display
 from app.usage import record_usage
 
@@ -100,6 +102,12 @@ volume is progressing even with a flat 1RM - do not call it stalled. Treat a lif
 problem only if it is `regressing`, or `holding` while it matters. `est_1rm_prs` is a
 nice-to-have, not the headline. Effort/RPE is not logged, so infer effort from notes.
 
+`recent_performance` is your GROUND TRUTH: for each exercise in the program it lists the ACTUAL
+sets (weight x reps, sometimes rpe and a note) the user logged in their most recent session(s).
+Every weight and rep you prescribe MUST come from what they actually did here, progressed
+sensibly - NOT copied from the current routine. Read their per-set note too (it often explains
+a weight they changed mid-session).
+
 Write:
 1. `narrative`: a direct, coach-voiced markdown review of the past week. Lead with what's
    genuinely progressing vs regressing (from `progression`, citing the reason - volume, reps,
@@ -124,12 +132,27 @@ Write:
    same movement on back-to-back days without a clear reason. Aim for the most optimal weekly
    distribution, not just a locally-sensible single day.
 
+   GROUND EVERY NUMBER AND EXPLAIN IT. This is the whole point - the user wants a coach who
+   makes informed decisions, not one who copies last week's numbers. For each exercise in a
+   routine you propose, set its `weight` and `reps` from `recent_performance` (what they
+   actually hit), progressed sensibly, and make the exercise `notes` explain the loading like a
+   coach would:
+   - If you HOLD a weight the same, you MUST say why in the note (they ground the last set /
+     missed reps / a per-set note flagged it too heavy / they just topped the rep range and
+     should bank a solid week before adding). Never leave a number unchanged without a reason -
+     an unexplained repeat is exactly what makes it feel arbitrary.
+   - If you PROGRESS, cite what they did (e.g. "you hit 275x3 clean last week, up to 280" or
+     "add a rep: you got 10,10,9, chase 11s before more weight").
+   - If you back off, tie it to their data or note (fatigue, a regressing verdict, a form flag).
+   Even exercises you are not otherwise changing get a one-line loading rationale in their note,
+   so nothing in the routine looks like a guess.
+
    Each set's `weight` is in the user's DISPLAY unit (stated below), NOT kilograms - the app
    converts it. The current routines below are already shown in that unit, so keep the same
    unit. Use real, round gym numbers (in pounds use multiples of 5 like 135, 185, 225; in
-   kilograms multiples of 2.5), grounded in the weights they actually lift. Give every
-   working set (normal/failure/dropset) a concrete `weight` AND `reps`; use `weight: null`
-   only for genuinely bodyweight movements. Never emit converted-looking fractions like 132.3.
+   kilograms multiples of 2.5). Give every working set (normal/failure/dropset) a concrete
+   `weight` AND `reps`; use `weight: null` only for genuinely bodyweight movements. Never emit
+   converted-looking fractions like 132.3.
    Set `routine.folder` to null for an `update` (it keeps its existing folder). For a `create`
    that belongs with a split, set `folder` to that split's short folder name.
 
@@ -212,6 +235,60 @@ def _bodyweight_signal(session: Session) -> Optional[dict]:
     }
 
 
+def _recent_performance(
+    session: Session, routines_raw: list[dict], unit: str, sessions_back: int = 2
+) -> list[dict]:
+    """For each exercise in the current program, the ACTUAL working sets the user logged in
+    their most recent session(s) - what they really hit, not what was prescribed. This is the
+    ground truth the coach prescribes from, so a proposed weight is a decision about real
+    performance rather than a copy of the routine. Weights in the user's display unit."""
+    wanted_tids = {
+        ex.get("exercise_template_id")
+        for r in routines_raw
+        for ex in r.get("exercises", [])
+        if ex.get("exercise_template_id")
+    }
+    wanted_titles = {
+        (ex.get("title") or "").lower() for r in routines_raw for ex in r.get("exercises", [])
+    }
+
+    by_ex: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
+    title_for: dict[str, str] = {}
+    for s in session.exec(select(WorkoutSet)).all():
+        if s.set_type not in WORKING_SET_TYPES or not s.reps or s.weight_kg is None:
+            continue
+        if s.exercise_template_id not in wanted_tids and s.exercise_title.lower() not in wanted_titles:
+            continue
+        key = s.exercise_template_id or s.exercise_title
+        by_ex[key][s.workout_id].append(s)
+        title_for.setdefault(key, s.exercise_title)
+
+    out = []
+    for key, workouts in by_ex.items():
+        recent_sessions = sorted(
+            workouts.values(),
+            key=lambda ss: ss[0].workout_start_time or datetime.min,
+            reverse=True,
+        )[:sessions_back]
+        history = []
+        for ss in recent_sessions:
+            ordered = sorted(ss, key=lambda x: x.set_index)
+            history.append(
+                {
+                    "date": ordered[0].workout_start_time.date().isoformat()
+                    if ordered[0].workout_start_time
+                    else None,
+                    "sets": [
+                        {"weight": to_display(x.weight_kg, unit), "reps": x.reps, **({"rpe": x.rpe} if x.rpe else {})}
+                        for x in ordered
+                    ],
+                    "note": next((x.exercise_notes for x in ordered if x.exercise_notes), None),
+                }
+            )
+        out.append({"exercise": title_for[key], "recent": history})
+    return out
+
+
 def _current_routines(routines_raw: list[dict], unit: str) -> list[dict]:
     """Current Hevy routines with set weights converted to the user's display unit, so the
     model reasons and proposes in one consistent unit."""
@@ -256,6 +333,8 @@ async def stream_weekly_review(session: Session, client: HevyClient) -> AsyncIte
     end = datetime.utcnow()
     start = end - timedelta(days=settings.weekly_review_days)
 
+    weight_unit = get_preferences(session)["weight_unit"]
+
     yield {"type": "step", "message": "Reading your training week"}
     training_days = len(
         {
@@ -284,9 +363,11 @@ async def stream_weekly_review(session: Session, client: HevyClient) -> AsyncIte
         "routine_changes": recent_changes(session, since=start),
     }
 
-    yield {"type": "step", "message": "Pulling your current routines"}
-    weight_unit = get_preferences(session)["weight_unit"]
-    routines = _current_routines(await client.get_routines(), weight_unit)
+    yield {"type": "step", "message": "Pulling your current routines and recent sessions"}
+    routines_raw = await client.get_routines()
+    routines = _current_routines(routines_raw, weight_unit)
+    # Ground truth for prescribing: what the user ACTUALLY lifted recently, per program lift.
+    signals["recent_performance"] = _recent_performance(session, routines_raw, weight_unit)
 
     yield {"type": "step", "message": "Drafting your review and proposing updates"}
     if settings.anthropic_configured:
