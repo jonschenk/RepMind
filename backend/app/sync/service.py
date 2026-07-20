@@ -7,15 +7,38 @@ GET /v1/workouts/events, which reports updated/deleted workouts since a date.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlmodel import Session, delete, select
+from sqlmodel import Session, delete, func, select
 
 from app.hevy import HevyClient
 from app.models import BodyMeasurement, ExerciseTemplate, SyncState, Workout, WorkoutSet
+from app.state import get_state, set_state
 
 logger = logging.getLogger("repmind.sync")
+
+# The workout delta must stay on the 5-minute cadence (it's what triggers the weekly review),
+# but exercise templates and body measurements are near-static and were being refetched on
+# every single run: together they were ~85% of ALL Hevy API traffic (1605 + 963 of 3045 calls
+# in a day) for data that changes at most daily. They get their own cadence instead. A manual
+# "Sync now" still forces both, and an unresolved exercise name forces a template refresh.
+TEMPLATES_KEY = "templates_synced_at"
+BODY_KEY = "body_synced_at"
+TEMPLATES_INTERVAL = timedelta(hours=24)
+BODY_INTERVAL = timedelta(hours=6)
+
+
+def _due(session: Session, key: str, interval: timedelta, now: datetime) -> bool:
+    raw = get_state(session, key) or {}
+    try:
+        return (now - datetime.fromisoformat(raw["at"])) >= interval
+    except (KeyError, TypeError, ValueError):
+        return True  # never synced / unreadable -> sync it
+
+
+def _mark_synced(session: Session, key: str, now: datetime) -> None:
+    set_state(session, key, {"at": now.isoformat()})
 
 
 def parse_dt(value: Optional[str]) -> Optional[datetime]:
@@ -147,13 +170,26 @@ async def sync_body_measurements(session: Session, client: HevyClient) -> int:
     return count
 
 
-async def run_sync(session: Session, client: HevyClient) -> dict:
-    """Full sync on first run, delta sync afterward. Returns a summary."""
-    state = _get_sync_state(session)
+async def run_sync(session: Session, client: HevyClient, force_refresh: bool = False) -> dict:
+    """Full sync on first run, delta sync afterward. Returns a summary.
 
-    # Always refresh templates (needed for name->UUID resolution + muscle analysis).
-    templates = await sync_templates(session, client)
-    body = await sync_body_measurements(session, client)
+    `force_refresh` pulls templates + body measurements regardless of their cadence; the manual
+    "Sync now" button uses it so an explicit sync always gets everything fresh.
+    """
+    state = _get_sync_state(session)
+    now = datetime.utcnow()
+
+    if force_refresh or _due(session, TEMPLATES_KEY, TEMPLATES_INTERVAL, now):
+        templates = await sync_templates(session, client)
+        _mark_synced(session, TEMPLATES_KEY, now)
+    else:
+        templates = session.exec(select(func.count()).select_from(ExerciseTemplate)).one()
+
+    if force_refresh or _due(session, BODY_KEY, BODY_INTERVAL, now):
+        body = await sync_body_measurements(session, client)
+        _mark_synced(session, BODY_KEY, now)
+    else:
+        body = session.exec(select(func.count()).select_from(BodyMeasurement)).one()
 
     if not state.full_sync_done:
         result = await _full_sync(session, client, state)
@@ -163,6 +199,14 @@ async def run_sync(session: Session, client: HevyClient) -> dict:
     result["templates"] = templates
     result["body_measurements"] = body
     return result
+
+
+async def refresh_templates(session: Session, client: HevyClient) -> int:
+    """Force a template refresh outside the normal cadence. Used when an exercise name can't be
+    resolved, so a newly created custom exercise doesn't have to wait for the daily refresh."""
+    count = await sync_templates(session, client)
+    _mark_synced(session, TEMPLATES_KEY, datetime.utcnow())
+    return count
 
 
 async def _full_sync(session: Session, client: HevyClient, state: SyncState) -> dict:

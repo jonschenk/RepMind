@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from typing import Any, Optional
 
@@ -16,6 +17,9 @@ from app.hevy.schemas import (
     build_routine_body,
 )
 from app.models import RoutineProposal
+from app.sync.service import refresh_templates
+
+logger = logging.getLogger("repmind.routines")
 
 router = APIRouter(prefix="/api/routines", tags=["routines"])
 
@@ -109,33 +113,45 @@ async def approve_proposal(
         }
 
     payload = row.payload or {}
-    exercises: list[ResolvedExercise] = []
-    unresolved: list[str] = []
 
-    for ex in payload.get("exercises", []):
-        template_id = resolve_template_id(session, ex.get("name", ""))
-        if not template_id:
-            unresolved.append(ex.get("name", ""))
-            continue
-        sets = [
-            ResolvedSet(
-                type=s.get("type", "normal"),
-                weight_kg=s.get("weight_kg"),
-                reps=s.get("reps"),
-                # Carried for a faithful stored record; build_routine_body never sends it,
-                # since a Hevy routine set takes a single rep number.
-                rep_max=s.get("rep_max"),
+    def _resolve_all() -> tuple[list[ResolvedExercise], list[str]]:
+        resolved: list[ResolvedExercise] = []
+        missing: list[str] = []
+        for ex in payload.get("exercises", []):
+            template_id = resolve_template_id(session, ex.get("name", ""))
+            if not template_id:
+                missing.append(ex.get("name", ""))
+                continue
+            sets = [
+                ResolvedSet(
+                    type=s.get("type", "normal"),
+                    weight_kg=s.get("weight_kg"),
+                    reps=s.get("reps"),
+                    # Translated into Hevy's native rep_range by build_routine_body.
+                    rep_max=s.get("rep_max"),
+                )
+                for s in ex.get("sets", [])
+            ]
+            resolved.append(
+                ResolvedExercise(
+                    exercise_template_id=template_id,
+                    rest_seconds=ex.get("rest_seconds"),
+                    notes=ex.get("notes"),
+                    sets=sets,
+                )
             )
-            for s in ex.get("sets", [])
-        ]
-        exercises.append(
-            ResolvedExercise(
-                exercise_template_id=template_id,
-                rest_seconds=ex.get("rest_seconds"),
-                notes=ex.get("notes"),
-                sets=sets,
-            )
-        )
+        return resolved, missing
+
+    exercises, unresolved = _resolve_all()
+
+    if unresolved:
+        # Templates refresh on a daily cadence, so an exercise the user created in Hevy today
+        # may not be cached yet. Force one refresh and retry before giving up.
+        try:
+            await refresh_templates(session, client)
+            exercises, unresolved = _resolve_all()
+        except Exception as exc:  # noqa: BLE001 - fall through to the 422 below
+            logger.warning("template refresh during approve failed: %s", exc)
 
     if unresolved:
         # Never push a partial routine — surface the names we couldn't map.

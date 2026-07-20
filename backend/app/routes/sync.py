@@ -15,7 +15,9 @@ async def sync_now(
     session: Session = Depends(get_session),
     client: HevyClient = Depends(hevy_client_dep),
 ):
-    return await run_sync(session, client)
+    # An explicit "Sync now" should get everything fresh, including templates and body
+    # measurements (which otherwise refresh on their own slower cadence).
+    return await run_sync(session, client, force_refresh=True)
 
 
 @router.get("/status")

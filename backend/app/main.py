@@ -72,7 +72,12 @@ async def _periodic_sync() -> None:
         with Session(engine) as session:
             client = HevyClient(settings)
             result = await run_sync(session, client)
-            logger.info("Periodic sync: %s", result)
+            # Only log at INFO when something actually changed. A no-op delta every 5 minutes
+            # was ~282 lines/day of noise that buried real events.
+            if result.get("updated") or result.get("deleted") or result.get("workouts_synced"):
+                logger.info("Periodic sync: %s", result)
+            else:
+                logger.debug("Periodic sync (no changes): %s", result)
             # Fire the weekly review if this brought the training week to completion.
             await maybe_generate_on_cycle(session, client)
     except Exception as exc:  # noqa: BLE001
