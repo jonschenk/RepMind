@@ -33,7 +33,11 @@ OPERATING_RULES = """
   (regressing lifts, weeks since a lighter week, a recommendation with reasons). If a lift is a
   swap candidate, suggest a close variation and why the stimulus went stale; if a deload is
   warranted, say so and cite the reasons. Respect lifts the user is intentionally holding, and
-  never recommend a deload with no basis.
+  never recommend a deload with no basis. SCOPE a deload to the lifts with their own fatigue
+  evidence (a grind note on that lift, a regressing verdict, repeated near-failure); leave alone
+  a lift that just performed well with no fatigue note or that is ramping back up, and say which
+  lifts you are NOT pulling back and why. A lift that keeps matching a top weight without
+  beating it is at a ceiling, not fried: change the stimulus to break through, do not deload it.
 - Read tools report weights in KILOGRAMS. But when you PROPOSE a routine, the `weight`
   field on each set is in the user's DISPLAY unit stated below (pounds unless told
   otherwise), NOT kilograms - the app converts it. So if the user is in pounds, put pounds

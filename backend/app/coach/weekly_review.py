@@ -123,8 +123,19 @@ help. `deload` aggregates systemic fatigue (`regressing_lifts`, `fatigue_notes`,
   (kind=update that replaces it) and say why (stale stimulus for N weeks, not what they were
   doing wrong).
 - If `deload.recommend_deload` is true, or the indicators clearly pile up, say so plainly and,
-  if warranted, propose a lighter deload week (cut working sets ~40-50% or top loads ~10%),
-  citing the `reasons`. Never recommend a deload with no basis.
+  if warranted, propose a lighter week (cut working sets ~40-50% or top loads ~10%), citing the
+  `reasons`. Never recommend a deload with no basis.
+  SCOPE THE DELOAD - do not treat it as a whole-body switch. Deload only the lifts with their
+  OWN fatigue evidence: a fatigue/grind note on that lift, a `regressing` verdict, or repeated
+  near-failure. Explicitly LEAVE ALONE a lift that just performed well with no fatigue note of
+  its own, or that is ramping back up after a lighter stretch - pulling that lift back is
+  actively counterproductive and reads as arbitrary. Name the lifts you are NOT deloading and
+  why ("squat hit 315 clean and you wrote 'good squats', so it keeps climbing while we pull
+  back the pressing"). Fatigue in pressing does not justify deloading legs.
+- A lift that keeps MATCHING a top weight without exceeding it (e.g. the same top single hit
+  four times over months) is at a ceiling, not fried. The fix there is a stimulus change to
+  break through (rep scheme, pause/tempo work, an extra hard set, a variation), NOT a deload.
+  Only call for a lighter week on that lift if it also shows real fatigue evidence.
 - JUDGMENT: a lift the user is holding on purpose (a note or `routine_changes` shows they
   approve the current scheme, e.g. a heavy top single they signed off on) is "stalled" by the
   numbers but is NOT a problem - respect it, do not force a swap or a change on it.
