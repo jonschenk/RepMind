@@ -1,4 +1,5 @@
 import json
+import logging
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -9,6 +10,8 @@ from app.db import get_session
 from app.deps import hevy_client_dep
 from app.hevy import HevyClient
 from app.models import RoutineProposal, WeeklyReview
+
+logger = logging.getLogger("repmind.weekly")
 
 router = APIRouter(prefix="/api/weekly", tags=["weekly"])
 
@@ -73,6 +76,7 @@ async def generate_stream(
             async for ev in stream_weekly_review(session, client):
                 yield f"data: {json.dumps(ev, default=str)}\n\n"
         except Exception as exc:  # noqa: BLE001 - surface to the client instead of hanging
+            logger.exception("Weekly review generation failed: %s", exc)
             yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
 
     return StreamingResponse(

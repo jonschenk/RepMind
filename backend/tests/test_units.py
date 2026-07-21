@@ -45,3 +45,29 @@ def test_routine_weights_to_kg_converts_and_drops_display_field():
     assert sets[0]["weight_kg"] == to_kg(225, "lb")
     assert "weight_kg" not in sets[1]  # no weight given -> no weight_kg invented
     assert out["folder"] == "PPL"  # unrelated keys preserved
+
+
+def test_malformed_exercise_raises_actionable_error():
+    """A bare string exercise used to blow up with 'dictionary update sequence element #0 has
+    length 1; 2 is required', which told nobody anything. It must name the offender instead."""
+    import pytest
+
+    from app.units import routine_weights_to_kg
+
+    with pytest.raises(ValueError) as e:
+        routine_weights_to_kg({"title": "Push", "exercises": ["Bench Press"]}, "lb")
+    msg = str(e.value)
+    assert "exercise #1" in msg and "Bench Press" in msg
+    assert "dictionary update sequence" not in msg
+
+
+def test_malformed_set_raises_actionable_error():
+    import pytest
+
+    from app.units import routine_weights_to_kg
+
+    with pytest.raises(ValueError) as e:
+        routine_weights_to_kg(
+            {"title": "Push", "exercises": [{"name": "Bench Press", "sets": ["225x8"]}]}, "lb"
+        )
+    assert "set #1" in str(e.value) and "Bench Press" in str(e.value)

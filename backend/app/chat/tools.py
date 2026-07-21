@@ -7,6 +7,7 @@ loop captures it and turns it into an approval-gated preview (see agent.py)."""
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from sqlmodel import Session, select
@@ -19,6 +20,8 @@ from app.hevy.resolve import search_templates
 from app.models import Workout, WorkoutSet
 from app.state import get_preferences
 from app.units import to_display
+
+logger = logging.getLogger("repmind.chat.tools")
 
 # --- Tool schemas sent to Claude --------------------------------------------------
 
@@ -354,4 +357,7 @@ async def execute_read_tool(
             return json.dumps({"error": f"unknown tool {name}"})
         return json.dumps(result, default=str)
     except Exception as exc:  # surface tool errors to the model, don't crash the stream
+        # Log with the traceback + the offending input: the model sees the error and often
+        # recovers silently, so without this a broken tool can fail repeatedly and invisibly.
+        logger.exception("Read tool %s failed (input=%r): %s", name, inp, exc)
         return json.dumps({"error": str(exc)})

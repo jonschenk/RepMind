@@ -32,10 +32,23 @@ def routine_weights_to_kg(routine: dict, unit: str) -> dict:
     canonical `weight_kg`, so the rest of the pipeline (card, edit, push) stays kg-native."""
     out = dict(routine)
     exercises = []
-    for ex in routine.get("exercises", []) or []:
+    for i, ex in enumerate(routine.get("exercises", []) or []):
+        # The model occasionally emits an exercise as a bare string. dict("Bench Press") then
+        # raises the useless "dictionary update sequence element #0 has length 1; 2 is
+        # required". Fail with something the model can actually act on instead.
+        if not isinstance(ex, dict):
+            raise ValueError(
+                f"exercise #{i + 1} must be an object with 'name' and 'sets', got "
+                f"{type(ex).__name__}: {ex!r}"
+            )
         ex2 = dict(ex)
         sets2 = []
-        for s in ex.get("sets", []) or []:
+        for j, s in enumerate(ex.get("sets", []) or []):
+            if not isinstance(s, dict):
+                raise ValueError(
+                    f"set #{j + 1} of '{ex.get('name', '?')}' must be an object with "
+                    f"type/weight/reps, got {type(s).__name__}: {s!r}"
+                )
             s2 = {k: v for k, v in s.items() if k != "weight"}
             if s.get("weight") is not None:
                 s2["weight_kg"] = to_kg(s["weight"], unit)

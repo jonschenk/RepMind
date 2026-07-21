@@ -4,6 +4,7 @@ captured and turned into an approval-gated preview instead of being executed."""
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -19,6 +20,8 @@ from app.models import RoutineProposal
 from app.state import get_preferences
 from app.units import routine_weights_to_kg
 from app.usage import record_usage
+
+logger = logging.getLogger("repmind.chat")
 
 # A full multi-day split needs many tool calls (exercise lookups + one propose_routine
 # per day), so this must be generous or the model gets cut off mid-plan.
@@ -133,7 +136,31 @@ async def stream_chat(
                 yield {"type": "tool_use", "name": block.name, "input": block.input}
 
                 if block.name == "propose_routine":
-                    proposal = _create_proposal(session, block.input, weight_unit)
+                    try:
+                        proposal = _create_proposal(session, block.input, weight_unit)
+                    except Exception as exc:  # noqa: BLE001
+                        # A malformed payload (e.g. an exercise emitted as a bare string) used
+                        # to raise out of the loop and kill the entire turn, throwing away a
+                        # routine the coach had already reasoned out. Hand the error back so it
+                        # can fix the shape and re-propose.
+                        logger.exception(
+                            "propose_routine payload rejected (input=%r): %s", block.input, exc
+                        )
+                        tool_results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "is_error": True,
+                                "content": (
+                                    f"propose_routine failed: {exc}\n"
+                                    'Every exercise must be an object: {"name": "...", "sets": '
+                                    '[{"type": "normal", "weight": 225, "reps": 8, "rep_max": 10}]}. '
+                                    "Fix the structure and call propose_routine again with the "
+                                    "COMPLETE routine."
+                                ),
+                            }
+                        )
+                        continue
                     yield {"type": "proposal", "proposal": proposal}
                     tool_results.append(
                         {
@@ -164,6 +191,9 @@ async def stream_chat(
             }
         yield {"type": "done"}
     except Exception as exc:  # never leave the SSE stream hanging
+        # Log the FULL traceback server-side. This used to only surface in the chat bubble,
+        # so a failed turn left no record at all and had to be diagnosed by reading source.
+        logger.exception("Chat turn failed: %s", exc)
         yield {"type": "error", "message": str(exc)}
     finally:
         if total_in or total_out:
