@@ -8,6 +8,8 @@ of a converted-looking fraction."""
 
 from __future__ import annotations
 
+import json
+
 from typing import Optional
 
 KG_TO_LB = 2.2046
@@ -27,12 +29,35 @@ def to_display(kg: Optional[float], unit: str) -> Optional[float]:
     return round(float(kg), 4) if unit == "kg" else round(float(kg) * KG_TO_LB, 1)
 
 
+def _as_list(value, what: str) -> list:
+    """Coerce a proposal list field into a real list.
+
+    The model sometimes double-encodes an array as a JSON *string*
+    (`"exercises": "[{...}]"`). Iterating that yields characters, which produced the
+    infamous "dictionary update sequence element #0 has length 1" crash. Parsing it here
+    turns a wasted retry round-trip into a silent success; anything genuinely malformed
+    still raises a message that names the field."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"'{what}' must be a list, got an unparseable string: {exc}") from exc
+        if not isinstance(parsed, list):
+            raise ValueError(f"'{what}' must be a list, got {type(parsed).__name__}")
+        return parsed
+    raise ValueError(f"'{what}' must be a list, got {type(value).__name__}: {value!r}")
+
+
 def routine_weights_to_kg(routine: dict, unit: str) -> dict:
     """Copy of a proposed routine dict with each set's display-unit `weight` converted to
     canonical `weight_kg`, so the rest of the pipeline (card, edit, push) stays kg-native."""
     out = dict(routine)
     exercises = []
-    for i, ex in enumerate(routine.get("exercises", []) or []):
+    for i, ex in enumerate(_as_list(routine.get("exercises"), "exercises")):
         # The model occasionally emits an exercise as a bare string. dict("Bench Press") then
         # raises the useless "dictionary update sequence element #0 has length 1; 2 is
         # required". Fail with something the model can actually act on instead.
@@ -43,7 +68,7 @@ def routine_weights_to_kg(routine: dict, unit: str) -> dict:
             )
         ex2 = dict(ex)
         sets2 = []
-        for j, s in enumerate(ex.get("sets", []) or []):
+        for j, s in enumerate(_as_list(ex.get("sets"), f"sets of '{ex.get('name', '?')}'")):
             if not isinstance(s, dict):
                 raise ValueError(
                     f"set #{j + 1} of '{ex.get('name', '?')}' must be an object with "

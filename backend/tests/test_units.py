@@ -71,3 +71,16 @@ def test_malformed_set_raises_actionable_error():
             {"title": "Push", "exercises": [{"name": "Bench Press", "sets": ["225x8"]}]}, "lb"
         )
     assert "set #1" in str(e.value) and "Bench Press" in str(e.value)
+
+
+def test_double_encoded_exercises_are_parsed_not_fatal():
+    """The model sometimes sends exercises as a JSON string instead of an array. Parse it
+    rather than forcing a retry (this is what caused the original crash)."""
+    import json as _json
+
+    from app.units import routine_weights_to_kg
+
+    exercises = [{"name": "Bench Press", "sets": [{"type": "normal", "weight": 225, "reps": 8}]}]
+    out = routine_weights_to_kg({"title": "Push", "exercises": _json.dumps(exercises)}, "lb")
+    assert out["exercises"][0]["name"] == "Bench Press"
+    assert abs(out["exercises"][0]["sets"][0]["weight_kg"] - 225 / 2.2046) < 0.01
