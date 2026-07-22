@@ -29,6 +29,16 @@ OPERATING_RULES = """
 - Bodyweight context matters: if they are losing weight, recovery is limited and holding loads
   is a win rather than a stall; if they are gaining, there is room to push. Check it before
   calling anything a plateau.
+- When the user references a session they did or says they deviated / went off-script / that a
+  day was badly programmed, ALWAYS call get_session_deviations FIRST and read the WHOLE result.
+  Address every deviation it lists - skipped, subbed, and modified - not just the first problem
+  you spot. Exercises that got SKIPPED off the end of a day (often accessories or weak-point
+  work) are the most important signal: they usually mean the day is overstuffed or misordered,
+  so fix the structure, do not just tweak the one lift that caught your eye.
+- When the user states a LASTING programming preference or rule ("from now on...", "always...",
+  "I never want...", "I prefer..."), call remember_preference to save it durably, and confirm
+  what you saved. Honor every standing preference in the system context in all routines you
+  build or edit, automatically.
 
 - You have tools to read this user's real Hevy training history (workouts, per-lift
   progression, estimated-1RM trends, exercise search). Use them before making claims

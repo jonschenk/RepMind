@@ -12,8 +12,9 @@ from typing import Any
 
 from sqlmodel import Session, select
 
-from app.analysis import progression, trends
+from app.analysis import directives, progression, trends
 from app.analysis import training_state as ts
+from app.analysis.deviations import session_vs_routine
 from app.config import get_settings
 from app.hevy import HevyClient
 from app.hevy.resolve import search_templates
@@ -77,6 +78,40 @@ READ_TOOLS: list[dict] = [
                 "formula": {"type": "string", "enum": ["epley", "brzycki"]},
             },
             "required": ["exercise"],
+        },
+    },
+    {
+        "name": "get_session_deviations",
+        "description": (
+            "Diff a LOGGED session against the routine it was based on: what was done as "
+            "prescribed, MODIFIED (load/reps changed), SKIPPED entirely, or ADDED/SUBBED, plus "
+            "the user's per-exercise notes. ALWAYS use this when the user references a specific "
+            "session they did (e.g. 'that pull day', 'my last push') or says they deviated or "
+            "went off-script - it shows the WHOLE session so you address every deviation, not "
+            "just the first one you notice. Optionally filter by workout title."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"title": {"type": "string", "description": "Optional workout-title filter, e.g. 'Pull'."}},
+        },
+    },
+    {
+        "name": "remember_preference",
+        "description": (
+            "Save a DURABLE standing preference the user states, so it is honored in every "
+            "future routine on every surface (chat AND the weekly review), permanently, not just "
+            "this session. Use this whenever the user expresses a lasting programming rule - e.g. "
+            "'from now on no rear delts on my heavy push days', 'always keep my deadlift heavy "
+            "singles', 'I prefer 4 exercises max on heavy days'. Do NOT use it for one-off "
+            "in-the-moment tweaks. Confirm to the user in your reply what you saved."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "The preference in the user's own terms, as a clear standing rule."},
+                "scope": {"type": "string", "description": "Optional: what it applies to (a routine name or a lift). Omit for a global rule."},
+            },
+            "required": ["text"],
         },
     },
     {
@@ -301,6 +336,16 @@ def _routine_set_view(s: dict, unit: str) -> dict:
     return out
 
 
+async def _get_session_deviations(client: HevyClient, session: Session, inp: dict) -> Any:
+    unit = get_preferences(session)["weight_unit"]
+    return await session_vs_routine(session, client, unit, title=(inp.get("title") or "").strip() or None)
+
+
+def _remember_preference(session: Session, inp: dict) -> Any:
+    row = directives.add_directive(session, inp["text"], scope=inp.get("scope"), source="chat")
+    return {"saved": True, "id": row.id, "text": row.text, "scope": row.scope}
+
+
 async def _get_routine(client: HevyClient, session: Session, inp: dict) -> Any:
     """Full current contents of one routine (by id or name), weights in the user's display
     unit. Use before editing so the update reflects the real routine, not a guess."""
@@ -347,6 +392,10 @@ async def execute_read_tool(
             result = _get_lift_progression(session, inp)
         elif name == "get_training_state":
             result = _get_training_state(session, inp)
+        elif name == "get_session_deviations":
+            result = await _get_session_deviations(client, session, inp)
+        elif name == "remember_preference":
+            result = _remember_preference(session, inp)
         elif name == "search_exercises":
             result = _search_exercises(session, inp)
         elif name == "list_routines":

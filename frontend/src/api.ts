@@ -156,6 +156,14 @@ export interface ChangeEntry {
   hevy_routine_id?: string | null;
 }
 
+export interface Directive {
+  id: number;
+  text: string;
+  scope: string | null;
+  source: string;
+  created_at: string;
+}
+
 export type ChatEvent =
   | { type: "text"; text: string }
   | { type: "tool_use"; name: string; input: unknown }
@@ -197,6 +205,9 @@ export const api = {
   generateWeekly: () => fetch("/api/weekly/generate", { method: "POST" }).then((r) => j<any>(r)),
   usage: () => fetch("/api/usage").then((r) => j<UsageData>(r)),
   changes: () => fetch("/api/changes").then((r) => j<{ changes: ChangeEntry[] }>(r)),
+  directives: () => fetch("/api/directives").then((r) => j<Directive[]>(r)),
+  removeDirective: (id: number) =>
+    fetch(`/api/directives/${id}`, { method: "DELETE" }).then((r) => j<{ removed: boolean }>(r)),
   chatHistory: () =>
     fetch("/api/chat/history").then((r) =>
       j<{ role: string; content: string; proposals: Proposal[] }[]>(r),

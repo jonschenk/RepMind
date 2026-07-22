@@ -103,6 +103,20 @@ class RoutineProposal(SQLModel, table=True):
     pushed_at: Optional[datetime] = Field(default=None, index=True)
 
 
+class CoachDirective(SQLModel, table=True):
+    """A durable standing preference the user gave the coach (e.g. 'no rear delts on heavy
+    push days'). Unlike the routine-change log (which is windowed and only records approved
+    edits), directives are permanent and injected in FULL into both the chat and weekly-review
+    prompts, so a preference stated once is honored everywhere until the user removes it."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    text: str  # the preference in the user's terms
+    scope: Optional[str] = None  # freeform: a routine name, a lift, or None for global
+    source: str = "chat"  # where it was captured
+    active: bool = Field(default=True, index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
 class ChatMessage(SQLModel, table=True):
     """Persisted chat turns (text only) so the coach has memory across sessions."""
 

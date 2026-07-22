@@ -20,6 +20,7 @@ from app.routes import (
     changes,
     chat,
     dashboard,
+    directives as directives_routes,
     routines,
     settings as settings_routes,
     sync,
@@ -147,6 +148,7 @@ app.include_router(weekly.router)
 app.include_router(settings_routes.router)
 app.include_router(usage.router)
 app.include_router(changes.router)
+app.include_router(directives_routes.router)
 
 
 @app.get("/api/health")

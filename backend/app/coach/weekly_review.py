@@ -17,7 +17,7 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from app.analysis import body, progression, prs, volume
+from app.analysis import body, directives, progression, prs, volume
 from app.analysis.changes import recent_changes
 from app.analysis.notes import extract_note_themes
 from app.analysis.training_state import training_state
@@ -97,6 +97,11 @@ _INSTRUCTIONS = """
 You are writing this user's weekly training review. Use the signals and their current
 routines below. (Analysis signals are in kilograms; the current routines are shown in the
 user's display unit - see the unit note.)
+
+`standing_preferences` are DURABLE rules the user gave the coach ("no rear delts on heavy push
+days", etc.). ALWAYS honor them: never propose a change that violates one, and if a preference
+conflicts with what the data suggests, follow the preference and note the tradeoff rather than
+overriding it. These persist across weeks - treat them as fixed constraints on every proposal.
 
 YOUR JOB: make the call yourself. You are their coach, not a report generator and not a rule
 engine. Weigh EVERYTHING below together - bodyweight trajectory and what it implies about
@@ -486,6 +491,10 @@ async def stream_weekly_review(session: Session, client: HevyClient) -> AsyncIte
     yield {"type": "step", "message": "Crunching volume, progression, and PRs"}
     signals = {
         "period": {"start": start.isoformat(), "end": end.isoformat()},
+        # Durable standing preferences the user gave the coach - honored permanently.
+        "standing_preferences": [
+            {"text": d.text, "scope": d.scope} for d in directives.list_active(session)
+        ],
         "training_days": training_days,
         "training_mix": progression.training_mix(session),
         "muscle_volume": volume.muscle_volume_report(session, start, end),

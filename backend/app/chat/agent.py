@@ -10,6 +10,7 @@ from typing import Any
 
 from sqlmodel import Session
 
+from app.analysis import directives
 from app.analysis.changes import changes_context_block
 from app.chat.prompt import build_system_prompt
 from app.chat.tools import ALL_TOOLS, execute_read_tool
@@ -71,6 +72,10 @@ async def stream_chat(
     anthropic = get_async_anthropic()
     weight_unit = get_preferences(session)["weight_unit"]
     system = build_system_prompt(weight_unit)
+    # Durable standing preferences the user has given (honored on every surface, permanently).
+    prefs = directives.directives_block(session)
+    if prefs:
+        system = f"{system}\n\n{prefs}"
     # Give chat continuity with the weekly-review bot: recent approved routine changes from
     # both surfaces, so it knows what was already edited (and doesn't redo/undo it).
     changes = changes_context_block(session)
